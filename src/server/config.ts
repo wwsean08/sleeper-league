@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import nodePath from 'node:path';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
@@ -39,7 +40,9 @@ const colorsSchema = z
   .prefault({});
 
 const schema = z.object({
-  leagueId: z.coerce.string().min(1, 'leagueId is required'),
+  leagueId: z.union([z.string().min(1), z.number().int().transform(String)], {
+    error: 'leagueId is required (non-empty string or integer)',
+  }),
   token: z.string().optional(),
   tokenFile: z.string().optional(),
   theme: z
@@ -62,11 +65,21 @@ const schema = z.object({
 });
 
 export function loadConfig(path: string, environment: NodeJS.ProcessEnv = process.env): Config {
+  let text: string;
+  try {
+    text = fs.readFileSync(path, 'utf8');
+  } catch (e) {
+    throw new ConfigError(`Cannot read config ${path}: ${((e as Error).message ?? '').split('\n')[0]}`);
+  }
   let raw: unknown;
   try {
-    raw = parse(fs.readFileSync(path, 'utf8'));
+    raw = parse(text);
   } catch (e) {
-    throw new ConfigError(`Cannot read config ${path}: ${(e as Error).message}`);
+    // YAML errors embed a source snippet that may contain secrets; keep only the first line and position.
+    const err = e as Error & { linePos?: Array<{ line: number; col: number }> };
+    const pos = err.linePos?.[0];
+    const where = pos ? ` (line ${pos.line}, column ${pos.col})` : '';
+    throw new ConfigError(`Invalid YAML in ${path}: ${(err.message ?? '').split('\n')[0]}${where}`);
   }
   const result = schema.safeParse(raw ?? {});
   if (!result.success) {
@@ -101,10 +114,15 @@ export function watchConfig(
       onError(e instanceof Error ? e : new Error(String(e)));
     }
   };
-  const watcher = fs.watch(path, () => {
+  // Watch the parent directory so atomic saves (temp file + rename) are still seen.
+  const dir = nodePath.dirname(path);
+  const base = nodePath.basename(path);
+  const watcher = fs.watch(dir, (_event, filename) => {
+    if (filename && filename.toString() !== base) return;
     clearTimeout(timer);
     timer = setTimeout(reload, 200);
   });
+  watcher.on('error', (e) => onError(e instanceof Error ? e : new Error(String(e))));
   return () => {
     clearTimeout(timer);
     watcher.close();

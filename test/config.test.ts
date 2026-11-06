@@ -58,6 +58,28 @@ describe('loadConfig', () => {
   });
 });
 
+describe('loadConfig hardening', () => {
+  it('rejects empty and null leagueId', () => {
+    expect(() => loadConfig(write('leagueId:\n'), {})).toThrow(ConfigError);
+    expect(() => loadConfig(write('leagueId: ~\n'), {})).toThrow(ConfigError);
+  });
+
+  it('loads an unquoted numeric leagueId as a string', () => {
+    expect(loadConfig(write('leagueId: 123456\n'), {}).leagueId).toBe('123456');
+  });
+
+  it('does not leak token text from YAML parse errors', () => {
+    const p = write('token: SECRET123\nleagueId: [unclosed\n  : : bad');
+    try {
+      loadConfig(p, {});
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConfigError);
+      expect((e as Error).message).not.toContain('SECRET123');
+    }
+  });
+});
+
 describe('watchConfig', () => {
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -77,6 +99,25 @@ describe('watchConfig', () => {
       await wait(700);
       expect(changes).toEqual([30]);
       expect(errors.length).toBeGreaterThan(0);
+    } finally {
+      stop();
+    }
+  });
+
+  it('still fires onChange after an atomic temp-file-and-rename save', async () => {
+    const p = write('leagueId: "1"\n');
+    const changes: number[] = [];
+    const stop = watchConfig(p, (c) => changes.push(c.rotationSeconds), () => {});
+    try {
+      await wait(100);
+      for (const n of [31, 32]) {
+        const tmpFile = p + '.tmp';
+        fs.writeFileSync(tmpFile, `leagueId: "1"\nrotationSeconds: ${n}\n`);
+        fs.renameSync(tmpFile, p);
+        await wait(600);
+      }
+      expect(changes.at(-1)).toBe(32);
+      expect(changes).toContain(31);
     } finally {
       stop();
     }
