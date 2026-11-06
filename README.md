@@ -15,7 +15,7 @@ npm ci
 npm run build     # type-checks and builds the web UI into dist/web
 ```
 
-If you skip the build, the server runs but the browser shows a blank page.
+If you skip the build, the server runs but every page returns a plain 404 "Not found".
 
 ## Configure
 
@@ -72,7 +72,7 @@ Open `http://<host>:3000/` (use your `port`). Pin a page with the URL hash:
 - With no game live, the screen cycles through the `playlist` every `playlistSeconds`.
 - While one of your starters' games is live, the spotlight is forced and rotates through the league's matchups every `rotationSeconds`.
 - A pinned hash page (`#/spotlight` etc.) always wins over automatic selection.
-- Big-play takeovers are for starters only (bench players never trigger them): touchdowns, gains of `longGainYards` or more, and turnovers or defensive scores (interceptions, lost fumbles, defensive touchdowns, safeties, sacks). Bursts are queued up to `takeoverQueueLimit`. The defensive stat keys are not yet verified against live frames (see `src/server/plays.ts`).
+- Big-play takeovers are for starters only (bench players never trigger them): touchdowns, a starter's own rushing, receiving or return gain of `longGainYards` or more (kickoffs, punts, field goals and extra points never count as long gains, so a kicker's kick distance never triggers one), and turnovers or defensive scores (interceptions, lost fumbles, defensive touchdowns, safeties, sacks). A play is shown once its frames settle (1.5s without an update, at most 8s after the first frame with a starter's stats), so takeovers land a couple of seconds after the snap. Bursts are queued up to `takeoverQueueLimit`. The defensive stat keys are not yet verified against live frames (see `src/server/plays.ts`).
 - The feed page lists recent plays for starters, including ones that did not trigger a takeover.
 
 ## Kiosk setup (Raspberry Pi OS / Linux)
@@ -80,7 +80,7 @@ Open `http://<host>:3000/` (use your `port`). Pin a page with the URL hash:
 Files in `ops/`:
 
 - `sleeper-tv.service`: systemd unit running `npm start` as a non-root user with `Restart=always`.
-- `kiosk.sh`: waits for the server, launches Chromium fullscreen, hides the cursor, disables screen blanking, and relaunches Chromium if it exits.
+- `kiosk.sh`: waits for the server (indefinitely, retrying every 5s and logging about every 30s), then launches Chromium fullscreen, hides the cursor, disables screen blanking, and relaunches Chromium if it exits.
 - `sleeper-tv-kiosk.desktop`: autostart entry for `kiosk.sh`.
 
 Server as a service:
@@ -88,7 +88,7 @@ Server as a service:
 ```sh
 sudo useradd --system --create-home sleeper        # or use an existing user
 sudo cp -r . /opt/sleeper-league && sudo chown -R sleeper: /opt/sleeper-league
-# (run npm ci && npm run build in /opt/sleeper-league)
+sudo -u sleeper sh -c 'cd /opt/sleeper-league && npm ci && npm run build'   # install and build as the service user
 sudo cp ops/sleeper-tv.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now sleeper-tv
 journalctl -u sleeper-tv -f
@@ -117,12 +117,14 @@ Hardware: a Raspberry Pi 4 is the performance floor. Pi 3 is not supported. An I
 The hardware end-to-end check has not been run by the author; please walk through it once on the real device:
 
 1. Reboot: the kiosk should come up showing standings.
-2. Unplug the network for about 30 seconds and replug: a banner should appear and then clear with no manual action.
+2. Unplug the network for about 3 minutes, then replug. While it is out: on spotlight/feed a "Live feed paused" banner appears after the socket's 45s watchdog; on standings/schedule a "Scores as of <time>" badge appears in the header once the last good REST poll is more than two poll intervals old (120s with the default `pollSeconds: 60`). After replugging, both clear on their own with no manual action.
 3. Put an invalid token in and restart: the spotlight and feed pages show "Live feed paused" while standings and scores continue from the REST poll.
 
 ## Troubleshooting
 
-- Blank page: `dist/web` is missing; run `npm run build`.
+- "Not found" page instead of the display: the server returns a plain 404 "Not found" when `dist/web` is missing; run `npm run build` (as the service user).
+- "Scores as of <time>" badge: the REST poll has not succeeded for more than two poll intervals (network or Sleeper outage). Scores shown are from that time; it clears after the next good poll.
+- "estimating" badge (spotlight/schedule): the live score drifted more than 5 points from Sleeper's REST total at the last poll; the REST value is shown and the badge clears once they agree.
 - "Reconnecting...": the browser lost its connection to the server; it recovers on its own when the server is back.
 - "Live feed paused": no valid token, or the Sleeper socket is down. The server reconnects with backoff; a bad or expired token needs replacing. REST-based data keeps updating.
 - Server exits at start: config error (printed on stderr), commonly a missing `config.local.yaml` or `leagueId`.

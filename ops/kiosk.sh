@@ -7,7 +7,9 @@
 #
 # Environment:
 #   PORT          server port (default 3000; must match `port` in config.local.yaml)
-#   WAIT_SECONDS  how long to wait for the server before giving up (default 120)
+#   LOG_EVERY     while waiting for the server, log a line about every this many seconds (default 30)
+#
+# The browser is only launched once the server answers; the script waits for it indefinitely.
 #
 # Run it from the desktop session (autostart), not from systemd, because it needs the display.
 # X11: screen blanking is disabled with xset below.
@@ -18,28 +20,36 @@
 #   transparent cursor theme.
 
 PORT="${PORT:-3000}"
-WAIT_SECONDS="${WAIT_SECONDS:-120}"
+LOG_EVERY="${LOG_EVERY:-30}"
+RETRY_SECONDS=5
 HASH="${1:-}"
 URL="http://localhost:${PORT}/${HASH}"
 BASE="http://localhost:${PORT}/"
 
 log() { echo "[kiosk] $*" >&2; }
 
+probe() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fs -o /dev/null --max-time 3 "$BASE"
+  else
+    wget -q -O /dev/null -T 3 "$BASE"
+  fi
+}
+
+# Blocks until the server answers, retrying every RETRY_SECONDS and logging about every LOG_EVERY seconds.
 wait_for_server() {
-  local waited=0
-  while [ "$waited" -lt "$WAIT_SECONDS" ]; do
-    if command -v curl >/dev/null 2>&1; then
-      curl -fs -o /dev/null --max-time 3 "$BASE" && return 0
-    elif command -v wget >/dev/null 2>&1; then
-      wget -q -O /dev/null -T 3 "$BASE" && return 0
-    else
-      log "neither curl nor wget found; cannot probe the server"
-      return 1
+  local waited=0 since_log=0
+  while ! probe; do
+    if [ "$since_log" -ge "$LOG_EVERY" ] || [ "$waited" -eq 0 ]; then
+      log "waiting for the server at ${BASE} (${waited}s so far)"
+      since_log=0
     fi
-    sleep 2
-    waited=$((waited + 2))
+    sleep "$RETRY_SECONDS"
+    waited=$((waited + RETRY_SECONDS))
+    since_log=$((since_log + RETRY_SECONDS))
   done
-  return 1
+  [ "$waited" -gt 0 ] && log "server is up after ${waited}s"
+  return 0
 }
 
 find_browser() {
@@ -54,9 +64,9 @@ find_browser() {
 }
 
 BROWSER="$(find_browser)" || { log "no chromium-browser, chromium or google-chrome found"; exit 1; }
-
-if ! wait_for_server; then
-  log "server at ${BASE} did not answer within ${WAIT_SECONDS}s; launching the browser anyway (Chromium shows an error page until the app is reachable; the page's own reconnect recovers once the server is up)"
+if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+  log "neither curl nor wget found; cannot probe the server"
+  exit 1
 fi
 
 # X11 only: no screen saver / DPMS blanking.
@@ -84,8 +94,9 @@ trap cleanup EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 
-# Relaunch Chromium whenever it exits or crashes.
+# Relaunch Chromium whenever it exits or crashes; never launch it against a dead server.
 while true; do
+  wait_for_server
   "$BROWSER" \
     --kiosk \
     --noerrdialogs \
@@ -100,6 +111,4 @@ while true; do
   log "browser exited (status $?); relaunching in 5s"
   CHROME_PID=""
   sleep 5
-  # If the server is down, wait for it again before relaunching.
-  wait_for_server || true
 done

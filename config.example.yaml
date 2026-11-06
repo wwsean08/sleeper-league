@@ -10,8 +10,9 @@ leagueId: "123456789012345678"
 # tokenFile: ./secrets.token
 
 theme:
-  # Optional logo URL or path shown in the header.
-  # logo: /logo.png
+  # Optional logo URL or path shown in the header. A relative path resolves against this
+  # config file's directory, e.g. logo.png placed next to the config file:
+  # logo: ./logo.png
   colors:
     bg: "#0e1a2b"        # page background
     surface: "#16263d"   # cards/panels
@@ -27,7 +28,8 @@ rotationSeconds: 15
 takeoverSeconds: 8
 # Max queued takeovers waiting to display.
 takeoverQueueLimit: 3
-# Gains of at least this many yards count as a "long gain" takeover.
+# A starter's rushing/receiving/return gain of at least this many yards is a "long gain" takeover
+# (kicks never count).
 longGainYards: 40
 # Seconds between Sleeper API polls.
 pollSeconds: 60
