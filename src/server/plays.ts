@@ -37,7 +37,7 @@ interface Opts {
 
 export class PlayPipeline {
   private readonly now: () => number;
-  private readonly pending = new Map<string, { firstSeen: number }>();
+  private readonly pending = new Map<string, { firstSeen: number; held?: { payload: any; involved: PlayEntry["involved"] } }>();
   private readonly done = new Set<string>(); // published or dropped; insertion-ordered
   private queue: PlayEntry[] = [];
   private showingUntil = 0;
@@ -53,17 +53,27 @@ export class PlayPipeline {
   handle(event: "new_play" | "updated_play", payload: any): void {
     const playId = payload?.play_id == null ? "" : String(payload.play_id);
     if (!playId || this.done.has(playId)) return;
-    if (!this.pending.has(playId)) this.pending.set(playId, { firstSeen: this.now() });
+    let entry = this.pending.get(playId);
+    if (!entry) this.pending.set(playId, (entry = { firstSeen: this.now() }));
     const involved = this.involved(payload);
-    if (involved.length) this.publish(playId, payload, involved);
+    if (!involved.length) return;
+    // Scoring plays wait for a starter TD stat (up to the 5s window); everything else publishes now.
+    if (payload.metadata?.is_scoring_play && !this.hasTd(payload)) {
+      entry.held = { payload, involved };
+      return;
+    }
+    this.publish(playId, payload, involved);
   }
 
   tick(): void {
     const now = this.now();
     for (const [id, p] of this.pending) {
       if (now - p.firstSeen >= WAIT_MS) {
-        this.pending.delete(id);
-        this.markDone(id);
+        if (p.held) this.publish(id, p.held.payload, p.held.involved);
+        else {
+          this.pending.delete(id);
+          this.markDone(id);
+        }
       }
     }
     this.advance();
@@ -71,7 +81,7 @@ export class PlayPipeline {
 
   private involved(payload: any): PlayEntry["involved"] {
     const out: PlayEntry["involved"] = [];
-    for (const ps of payload?.play_stats ?? []) {
+    for (const ps of this.statsOf(payload)) {
       const id = String(ps?.player_id ?? "");
       const rosterId = this.opts.league.starterOwner(id);
       if (rosterId === undefined) continue;
@@ -84,21 +94,31 @@ export class PlayPipeline {
     return out;
   }
 
+  private statsOf(payload: any): any[] {
+    return Array.isArray(payload?.play_stats) ? payload.play_stats : [];
+  }
+
+  private starterStats(payload: any): Array<Record<string, number>> {
+    return this.statsOf(payload)
+      .filter((ps) => this.opts.league.starterOwner(String(ps?.player_id ?? "")) !== undefined)
+      .map((ps) => ps.stats ?? {});
+  }
+
+  private hasTd(payload: any): boolean {
+    return this.starterStats(payload).some((s) =>
+      Object.entries(s).some(([k, v]) => (k === "td" || k.endsWith("_td")) && typeof v === "number" && v > 0),
+    );
+  }
+
   private markDone(id: string): void {
     this.done.add(id);
     if (this.done.size > MAX_SEEN) this.done.delete(this.done.values().next().value as string);
   }
 
   private classify(payload: any, yards: number): BigPlayKind | undefined {
-    const stats: Array<Record<string, number>> = [];
-    for (const ps of payload?.play_stats ?? []) {
-      if (this.opts.league.starterOwner(String(ps?.player_id ?? "")) !== undefined) stats.push(ps.stats ?? {});
-    }
+    const stats = this.starterStats(payload);
     const pos = (v: unknown) => typeof v === "number" && v > 0;
-    if (
-      payload?.metadata?.is_scoring_play &&
-      stats.some((s) => Object.entries(s).some(([k, v]) => (k === "td" || k.endsWith("_td")) && pos(v)))
-    ) return "touchdown";
+    if (payload?.metadata?.is_scoring_play && this.hasTd(payload)) return "touchdown";
     if (stats.some((s) => TURNOVER_KEYS.some((k) => pos(s[k])))) return "turnover";
     if (yards >= this.opts.cfg().longGainYards) return "long_gain";
     return undefined;
@@ -131,7 +151,7 @@ export class PlayPipeline {
 
   private enqueue(e: PlayEntry): void {
     this.queue.push(e);
-    const limit = this.opts.cfg().takeoverQueueLimit;
+    const limit = Math.max(1, this.opts.cfg().takeoverQueueLimit);
     // The play on screen is not in the queue, so the queue holds at most `limit` waiting plays.
     while (this.queue.length > limit) {
       let drop = 0;

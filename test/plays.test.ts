@@ -97,4 +97,48 @@ describe("PlayPipeline", () => {
     expect(() => p.handle("new_play", play("a", { s1: { weird_key: 3 } }))).not.toThrow();
     expect(feed).toHaveLength(1);
   });
+  it("holds scoring play until TD stat arrives, publishing once as touchdown", () => {
+    const { p, feed, advance } = setup();
+    p.handle("new_play", play("a", { s1: { rec_yd: 30 } }, { is_scoring_play: true }));
+    expect(feed).toHaveLength(0);
+    advance(2000);
+    p.handle("updated_play", play("a", { s1: { rec_yd: 30, rec_td: 1 } }, { is_scoring_play: true }));
+    expect(feed).toHaveLength(1);
+    expect(feed[0].kind).toBe("touchdown");
+    expect(feed[0].involved[0].points).toBe(9);
+    advance(6000); p.tick();
+    expect(feed).toHaveLength(1);
+  });
+  it("scoring play with no TD stat publishes at 5s without kind, once", () => {
+    const { p, feed, advance } = setup();
+    p.handle("new_play", play("a", { s1: { rec_yd: 30 } }, { is_scoring_play: true, yards_gained: 5 }));
+    advance(4999); p.tick();
+    expect(feed).toHaveLength(0);
+    advance(1); p.tick();
+    expect(feed).toHaveLength(1);
+    expect(feed[0].kind).toBeUndefined();
+    advance(6000); p.tick();
+    expect(feed).toHaveLength(1);
+  });
+  it("non-scoring play publishes immediately", () => {
+    const { p, feed } = setup();
+    p.handle("new_play", play("a", { s1: { rec_yd: 5 } }));
+    expect(feed).toHaveLength(1);
+  });
+  it("treats non-array play_stats as empty", () => {
+    const { p, feed } = setup();
+    expect(() => p.handle("new_play", { ...play("a", {}), play_stats: {} })).not.toThrow();
+    expect(feed).toHaveLength(0);
+  });
+  it("overflow drops lowest-value kind first, keeps newest high-value", () => {
+    const { p, takeovers, advance } = setup();
+    const td = (id: string) => p.handle("new_play", play(id, { s1: { rec_td: 1 } }, { is_scoring_play: true }));
+    td("show");
+    p.handle("new_play", play("lg", { s1: { rec: 1 } }, { yards_gained: 50 }));
+    p.handle("new_play", play("to", { s1: { pass_int: 1 } }));
+    td("td1");
+    td("td2");
+    for (let i = 0; i < 6; i++) { advance(8000); p.tick(); }
+    expect(takeovers.map((e) => e.playId)).toEqual(["show", "lg", "td1", "td2"]);
+  });
 });
