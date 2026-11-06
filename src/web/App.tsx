@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { applyTheme } from './theme';
 import { hasLiveStarters, useStore } from './store';
+import { Layout } from './components/Layout';
 import { StaleBanner } from './components/StaleBanner';
 import { Standings } from './pages/Standings';
 import { Schedule } from './pages/Schedule';
@@ -50,7 +51,9 @@ export function App() {
   return (
     <>
       <StaleBanner status={store.status} connected={store.connected} page={page} />
-      <View store={store} />
+      <Layout logo={store.snapshot?.theme.logo} leagueName={store.snapshot?.leagueName}>
+        <View store={store} />
+      </Layout>
     </>
   );
 }
