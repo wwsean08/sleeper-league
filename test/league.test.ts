@@ -74,4 +74,43 @@ describe("LeagueState", () => {
     expect(s[0].teamName).toBe("Team1");
     expect(s[0].starters).toEqual([{ playerId: "p1", name: "Alpha", position: "WR", points: 0 }]);
   });
+
+  it("clears live totals on week rollover", () => {
+    const l = fresh();
+    l.applyStatUpdate("p1", { rec_yd: 100 });
+    l.loadWeek(4, rosters, mk(0, 0));
+    expect(l.view().matchups[0].sides[0].starters[0].points).toBe(0);
+    const c = l.applyStatUpdate("p1", { rec_yd: 30 })!;
+    expect(c.matchupScores[1]).toBe(3);
+  });
+  it("seeds from REST players_points so first live update is not double counted", () => {
+    const l = new LeagueState(rules, players);
+    const m = mk(10, 20);
+    m[0].sides[0]!.playersPoints = { p1: 10 };
+    l.loadWeek(3, rosters, m);
+    expect(l.view().matchups[0].sides[0].starters[0].points).toBe(10);
+    const c = l.applyStatUpdate("p1", { rec_yd: 120 })!;
+    expect(c.matchupScores[1]).toBe(12);
+    expect(l.view().matchups[0].sides[0].starters[0].points).toBe(12);
+  });
+  it("records bench totals so a promoted player adds only the difference", () => {
+    const l = fresh();
+    expect(l.applyStatUpdate("p4", { rec_yd: 50 })).toBeUndefined();
+    l.loadWeek(3, rosters, mk(10, 20, ["p4", "0"]));
+    const c = l.applyStatUpdate("p4", { rec_yd: 70 })!;
+    expect(c.matchupScores[1]).toBe(12);
+  });
+  it("unknown stat key contributes 0 and does not throw", () => {
+    const l = fresh();
+    const c = l.applyStatUpdate("p1", { zzz: 5 })!;
+    expect(c.playerPoints).toBe(0);
+    expect(c.matchupScores[1]).toBe(10);
+  });
+  it("bye roster is in standings with no starters indexed", () => {
+    const l = new LeagueState(rules, players);
+    const rs = [...rosters, roster(3, 0, 0, ["p2"])];
+    l.loadWeek(3, rs, mk(10, 20));
+    expect(l.view().standings).toHaveLength(3);
+    expect(l.starterOwner("p2")).toBeUndefined();
+  });
 });

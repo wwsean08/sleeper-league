@@ -75,12 +75,13 @@ export function createRest(fetchFn: typeof fetch = fetch, now: () => number = Da
     },
 
     async matchups(id: string, week: number): Promise<Matchup[]> {
-      type Raw = { roster_id: number; matchup_id: number | null; points?: number; starters?: string[] };
+      type Raw = { roster_id: number; matchup_id: number | null; points?: number; starters?: string[]; players_points?: Record<string, number> | null };
       const raw = await get<Raw[]>(`/league/${id}/matchups/${week}`);
       const groups = new Map<number, MatchupSide[]>();
       for (const m of raw) {
         if (m.matchup_id == null) continue;
         const side: MatchupSide = { rosterId: m.roster_id, points: m.points ?? 0, starters: m.starters ?? [] };
+        if (m.players_points) side.playersPoints = m.players_points;
         const g = groups.get(m.matchup_id);
         if (g) g.push(side);
         else groups.set(m.matchup_id, [side]);

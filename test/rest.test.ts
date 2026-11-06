@@ -35,7 +35,7 @@ describe("rest", () => {
     const rest = createRest(
       fakeFetch({
         "/league/1/matchups/2": [
-          { roster_id: 1, matchup_id: 5, points: 10.5, starters: ["a", "0"] },
+          { roster_id: 1, matchup_id: 5, points: 10.5, starters: ["a", "0"], players_points: { a: 10.5 } },
           { roster_id: 2, matchup_id: 5, points: 8, starters: ["b"] },
           { roster_id: 3, matchup_id: 6, points: 1, starters: [] },
         ],
@@ -44,6 +44,8 @@ describe("rest", () => {
     const m = await rest.matchups("1", 2);
     expect(m).toHaveLength(2);
     expect(m[0]!.matchupId).toBe(5);
+    expect(m[0]!.sides[0].playersPoints).toEqual({ a: 10.5 });
+    expect(m[0]!.sides[1]!.playersPoints).toBeUndefined();
     expect(m[0]!.sides[0].starters).toEqual(["a", "0"]);
     expect(m[0]!.sides[1]!.rosterId).toBe(2);
     expect(m[1]!.sides[1]).toBeUndefined();

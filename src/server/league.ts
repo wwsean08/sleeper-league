@@ -50,6 +50,7 @@ export class LeagueState {
   ) {}
 
   loadWeek(week: number, rosters: Roster[], matchups: Matchup[]): void {
+    if (week !== this.week) this.lastSeen.clear();
     this.week = week;
     this.rosters = rosters;
     this.matchups = matchups;
@@ -64,6 +65,10 @@ export class LeagueState {
       for (const side of m.sides) {
         if (!side) continue;
         this.scores.set(side.rosterId, side.points);
+        // REST players_points already reflect what each player scored; seed so the first live delta is relative to it.
+        for (const [id, pts] of Object.entries(side.playersPoints ?? {})) {
+          if (typeof pts === "number" && Number.isFinite(pts)) this.lastSeen.set(id, pts);
+        }
         for (const id of side.starters) {
           if (id === "0") continue;
           this.starterIndex.set(id, { rosterId: side.rosterId, matchupId: m.matchupId });
@@ -77,11 +82,12 @@ export class LeagueState {
   }
 
   applyStatUpdate(playerId: string, cumulative: Record<string, number>): ScoreChange | undefined {
+    const newTotal = scoreStats(cumulative, this.rules, this.onUnknown);
+    const prev = this.lastSeen.get(playerId) ?? 0;
+    this.lastSeen.set(playerId, newTotal); // recorded for bench players too
     const owner = this.starterIndex.get(playerId);
     if (!owner) return undefined;
-    const newTotal = scoreStats(cumulative, this.rules, this.onUnknown);
-    const delta = newTotal - (this.lastSeen.get(playerId) ?? 0);
-    this.lastSeen.set(playerId, newTotal);
+    const delta = newTotal - prev;
     this.scores.set(owner.rosterId, round2((this.scores.get(owner.rosterId) ?? 0) + delta));
     const matchupScores: Record<number, number> = {};
     const m = this.matchups.find((x) => x.matchupId === owner.matchupId);
@@ -92,7 +98,7 @@ export class LeagueState {
       rosterId: owner.rosterId,
       matchupId: owner.matchupId,
       playerId,
-      playerPoints: newTotal,
+      playerPoints: round2(newTotal),
       matchupScores,
     };
   }

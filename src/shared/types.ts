@@ -9,12 +9,14 @@ export interface Roster {
   fpts: number;
   players: string[];
   starters: string[];
+  playersPoints?: Record<string, number>;
 }
 
 export interface MatchupSide {
   rosterId: number;
   points: number;
   starters: string[];
+  playersPoints?: Record<string, number>;
 }
 
 export interface Matchup {
