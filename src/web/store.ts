@@ -34,13 +34,22 @@ export function reduce(state: StoreState, msg: ServerMessage): StoreState {
   }
 }
 
+/** Matchup ids having a starter involved in a play within the live window. */
+export function liveMatchupIds(league: LeagueView | undefined, feed: PlayEntry[], now: number): Set<number> {
+  const ids = new Set<number>();
+  if (!league) return ids;
+  const since = now - LIVE_WINDOW_MS;
+  const recent = new Set<string>();
+  for (const p of feed) if (p.at >= since) for (const i of p.involved) recent.add(i.playerId);
+  for (const m of league.matchups) {
+    if (m.sides.some((s) => s.starters.some((st) => recent.has(st.playerId)))) ids.add(m.matchupId);
+  }
+  return ids;
+}
+
 /** True when a recent play involved a player who is a current starter in any matchup. */
 export function hasLiveStarters(league: LeagueView | undefined, feed: PlayEntry[], now: number): boolean {
-  if (!league) return false;
-  const starters = new Set<string>();
-  for (const m of league.matchups) for (const side of m.sides) for (const st of side.starters) starters.add(st.playerId);
-  const since = now - LIVE_WINDOW_MS;
-  return feed.some((p) => p.at >= since && p.involved.some((i) => starters.has(i.playerId)));
+  return liveMatchupIds(league, feed, now).size > 0;
 }
 
 export const RETRY_MS = 5000;

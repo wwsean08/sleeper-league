@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { applyTheme } from './theme';
 import { hasLiveStarters, useStore } from './store';
+import { Takeover } from './components/Takeover';
 import { Layout } from './components/Layout';
 import { StaleBanner } from './components/StaleBanner';
 import { Standings } from './pages/Standings';
@@ -54,6 +55,7 @@ export function App() {
       <Layout logo={store.snapshot?.theme.logo} leagueName={store.snapshot?.leagueName}>
         <View store={store} />
       </Layout>
+      {store.takeover && <Takeover play={store.takeover} seconds={ui?.takeoverSeconds ?? 8} league={store.league} />}
     </>
   );
 }
