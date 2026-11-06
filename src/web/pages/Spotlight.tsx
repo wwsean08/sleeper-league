@@ -9,6 +9,8 @@ type Side = Matchup['sides'][number];
 
 const DEFAULT_ROTATION_SECONDS = 15;
 const MAX_PLAYS = 5;
+// A play must move this matchup by at least this many points (up or down) to be listed.
+const MIN_PLAY_POINTS = 0.1;
 
 function Fade({ children }: { children: React.ReactNode }) {
   const [shown, setShown] = useState(false);
@@ -54,7 +56,12 @@ function MatchupView({ matchup, feed }: { matchup: Matchup; feed: PlayEntry[] })
   const max = Math.max(...matchup.sides.map((s) => s.score));
   const tied = !bye && matchup.sides[0]!.score === matchup.sides[1]!.score;
   const ids = new Set(matchup.sides.flatMap((s) => s.starters.map((st) => st.playerId)));
-  const plays = feed.filter((p) => p.involved.some((i) => ids.has(i.playerId))).slice(0, MAX_PLAYS);
+  // Points a play earned for the starters in THIS matchup (the figure shown on the right of each row).
+  const matchupPoints = (p: PlayEntry) =>
+    Math.round(p.involved.filter((i) => ids.has(i.playerId)).reduce((a, i) => a + i.points, 0) * 100) / 100;
+  const plays = feed
+    .filter((p) => p.involved.some((i) => ids.has(i.playerId)) && Math.abs(matchupPoints(p)) >= MIN_PLAY_POINTS)
+    .slice(0, MAX_PLAYS);
   return (
     <div className="flex h-full flex-col gap-6">
       <div className="flex min-h-0 gap-12">
@@ -65,7 +72,7 @@ function MatchupView({ matchup, feed }: { matchup: Matchup; feed: PlayEntry[] })
       <div className="mt-auto flex flex-col gap-2 rounded-xl bg-surface px-6 py-4">
         {plays.length === 0 && <div className="text-2xl text-text/60">No plays yet</div>}
         {plays.map((p) => {
-          const pts = p.involved.filter((i) => ids.has(i.playerId)).reduce((a, i) => a + i.points, 0);
+          const pts = matchupPoints(p);
           return (
             <div key={p.playId} className="flex items-baseline gap-4 text-2xl">
               <span className="w-32 text-text/60 tabular-nums">{`Q${p.quarter} ${p.clock}`}</span>

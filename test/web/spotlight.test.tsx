@@ -55,6 +55,61 @@ describe('Spotlight', () => {
     expect(idle.className).not.toContain('bg-accent/10');
     expect(idle.querySelector('[aria-label="game in progress"]')).toBeNull();
   });
+  describe('recent plays threshold', () => {
+    const withPts = (id: string, pts: number, pid = 'a1', over: Record<string, unknown> = {}) =>
+      play(id, pid, { involved: [{ playerId: pid, name: 'x', rosterId: 1, points: pts }], ...over });
+
+    it('hides plays whose points for this matchup are under 0.1', () => {
+      const feed = [withPts('zero', 0), withPts('tiny', 0.05), withPts('edge', 0.1), withPts('big', 4.2)];
+      render(<Spotlight store={mk([m1], feed)} now={NOW} />);
+      expect(screen.queryByText('desc-zero')).toBeNull();
+      expect(screen.queryByText('desc-tiny')).toBeNull();
+      expect(screen.getByText('desc-edge')).toBeInTheDocument();
+      expect(screen.getByText('desc-big')).toBeInTheDocument();
+    });
+    it('keeps negative plays, since a turnover still moves the score', () => {
+      render(<Spotlight store={mk([m1], [withPts('int', -2), withPts('lost', -0.05)])} now={NOW} />);
+      expect(screen.getByText('desc-int')).toBeInTheDocument();
+      expect(screen.queryByText('desc-lost')).toBeNull();
+    });
+    it('sums every starter of this matchup who was involved before comparing', () => {
+      const two = play('two', 'a1', {
+        involved: [
+          { playerId: 'a1', name: 'x', rosterId: 1, points: 0.06 },
+          { playerId: 'b1', name: 'y', rosterId: 2, points: 0.06 },
+        ],
+      });
+      render(<Spotlight store={mk([m1], [two])} now={NOW} />);
+      expect(screen.getByText('desc-two')).toBeInTheDocument();
+    });
+    it('ignores points earned by players who are not in this matchup', () => {
+      const other = play('other', 'a1', {
+        involved: [
+          { playerId: 'a1', name: 'x', rosterId: 1, points: 0 },
+          { playerId: 'zz', name: 'z', rosterId: 9, points: 8 },
+        ],
+      });
+      render(<Spotlight store={mk([m1], [other])} now={NOW} />);
+      expect(screen.queryByText('desc-other')).toBeNull();
+    });
+    it('shows the latest five that qualify, skipping non-scoring plays in between', () => {
+      const feed = [
+        withPts('n1', 0), withPts('q1', 1), withPts('n2', 0), withPts('q2', 1), withPts('q3', 1),
+        withPts('n3', 0), withPts('q4', 1), withPts('q5', 1), withPts('q6', 1),
+      ];
+      render(<Spotlight store={mk([m1], feed)} now={NOW} />);
+      for (const id of ['q1', 'q2', 'q3', 'q4', 'q5']) expect(screen.getByText(`desc-${id}`)).toBeInTheDocument();
+      expect(screen.queryByText('desc-q6')).toBeNull();
+    });
+    it('shows "No plays yet" when every recent play is under the threshold', () => {
+      render(<Spotlight store={mk([m1], [withPts('z1', 0), withPts('z2', 0.02)])} now={NOW} />);
+      expect(screen.getByText('No plays yet')).toBeInTheDocument();
+    });
+    it('still treats a matchup as live from a zero-point play, so rotation is unaffected', () => {
+      render(<Spotlight store={mk([m1, m2], [withPts('z', 0, 'c1', { involved: [{ playerId: 'c1', name: 'x', rosterId: 3, points: 0 }] })])} now={NOW} />);
+      expect(screen.getByText('Gamma')).toBeInTheDocument(); // only m2 is live, so it is the one shown
+    });
+  });
   it('ties are neutral', () => {
     render(<Spotlight store={mk([m2])} now={NOW} />);
     for (const s of screen.getAllByText('50.0')) expect(s.className).not.toContain('text-good');
