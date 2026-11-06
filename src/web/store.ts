@@ -61,7 +61,11 @@ export function feedPaused(status: FeedStatus, everLive: boolean): boolean {
   return status === 'paused' || (status === 'connecting' && everLive);
 }
 
-/** Matchup ids having a starter involved in a play within the live window. */
+/**
+ * Matchup ids that are "active": a starter's NFL game is in progress, or a starter was involved in a play within
+ * the live window. The first signal keeps a quiet starter (a kicker, a WR with no targets) in the rotation even
+ * when there are no plays to show; the second covers the moments after a game ends or the feed drops.
+ */
 export function liveMatchupIds(league: LeagueView | undefined, feed: PlayEntry[], now: number): Set<number> {
   const ids = new Set<number>();
   if (!league) return ids;
@@ -69,12 +73,12 @@ export function liveMatchupIds(league: LeagueView | undefined, feed: PlayEntry[]
   const recent = new Set<string>();
   for (const p of feed) if (p.at >= since) for (const i of p.involved) recent.add(i.playerId);
   for (const m of league.matchups) {
-    if (m.sides.some((s) => s.starters.some((st) => recent.has(st.playerId)))) ids.add(m.matchupId);
+    if (m.sides.some((s) => s.starters.some((st) => st.live || recent.has(st.playerId)))) ids.add(m.matchupId);
   }
   return ids;
 }
 
-/** True when a recent play involved a player who is a current starter in any matchup. */
+/** True when any matchup is active (see liveMatchupIds): a live game for a starter, or a recent play by one. */
 export function hasLiveStarters(league: LeagueView | undefined, feed: PlayEntry[], now: number): boolean {
   return liveMatchupIds(league, feed, now).size > 0;
 }

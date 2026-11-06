@@ -193,6 +193,40 @@ describe('Spotlight', () => {
   });
 });
 
+describe('rotation includes matchups with a starter who is actively playing', () => {
+  const liveM = { matchupId: 5, sides: [side(5, 'Echo', 0, [st('e1', 'Eve Edge', 0, true)]), side(6, 'Foxtrot', 0, [st('f1', 'Fay Flat', 0)])] };
+  const idleM = { matchupId: 6, sides: [side(7, 'Golf', 0, [st('g1', 'Gus Gone', 0)]), side(8, 'Hotel', 0, [st('h1', 'Hal Hold', 0)])] };
+
+  it('liveMatchupIds includes a live-starter matchup with no feed at all', () => {
+    const league = { week: 1, standings: [], matchups: [liveM, idleM], estimating: false } as never;
+    expect([...liveMatchupIds(league, [], NOW)]).toEqual([5]);
+  });
+  it('liveMatchupIds still includes a matchup with a recent play but no live flag, and dedupes both signals', () => {
+    const both = { matchupId: 9, sides: [side(9, 'India', 0, [st('i1', 'Ian Iron', 0, true)]), side(10, 'Juliet', 0)] };
+    const league = { week: 1, standings: [], matchups: [liveM, idleM, both, m2], estimating: false } as never;
+    expect([...liveMatchupIds(league, [play('x', 'd1'), play('y', 'i1')] as never, NOW)].sort()).toEqual([2, 5, 9]);
+  });
+  it('the spotlight shows the live-starter matchup and skips idle ones, with an empty plays panel', () => {
+    render(<Spotlight store={mk([idleM, liveM], [])} now={NOW} />);
+    expect(screen.getByText('Echo')).toBeInTheDocument();
+    expect(screen.queryByText('Golf')).toBeNull();
+    expect(screen.getByText('1 of 1')).toBeInTheDocument();
+    expect(screen.getByText('No plays yet')).toBeInTheDocument();
+  });
+  it('rotates between two matchups that both have live starters', () => {
+    const liveM2 = { matchupId: 7, sides: [side(11, 'Kilo', 0, [st('k1', 'Kay Kick', 0, true)]), side(12, 'Lima', 0)] };
+    render(<Spotlight store={mk([liveM, idleM, liveM2], [], 10)} now={NOW} />);
+    expect(screen.getByText('Echo')).toBeInTheDocument();
+    act(() => void vi.advanceTimersByTime(10_000));
+    expect(screen.getByText('Kilo')).toBeInTheDocument();
+    expect(screen.getByText('2 of 2')).toBeInTheDocument();
+  });
+  it('falls back to every matchup when nothing is live', () => {
+    render(<Spotlight store={mk([idleM, m2], [])} now={NOW} />);
+    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+  });
+});
+
 describe('liveMatchupIds', () => {
   it('returns matchups with a recent play by a starter', () => {
     const league = { week: 1, standings: [], matchups: [m1, m2], estimating: false } as never;

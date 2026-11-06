@@ -71,7 +71,7 @@ Open `http://<host>:3000/` (use your `port`). Pin a page with the URL hash:
 ## How the pages behave
 
 - With no game live, the screen cycles through the `playlist` every `playlistSeconds`.
-- While one of your starters' games is live, the spotlight is forced and rotates through the league's matchups every `rotationSeconds`.
+- While one of your starters' games is live, the spotlight is forced and rotates every `rotationSeconds` through the matchups that have an active starter: one whose NFL game is in progress (shown with a faint highlight and a dot), or who was in a play within the last 15 minutes. A matchup stays in the rotation even if it has no plays to list. If no matchup is active, it rotates through all of them.
 - A pinned hash page (`#/spotlight` etc.) always wins over automatic selection.
 - Big-play takeovers are for starters only (bench players never trigger them): touchdowns, a starter's own rushing, receiving or return gain of `longGainYards` or more (kickoffs, punts, field goals and extra points never count as long gains, so a kicker's kick distance never triggers one), and turnovers or defensive scores (interceptions, lost fumbles, defensive touchdowns, safeties, sacks). A play is shown once its frames settle (1.5s without an update, at most 8s after the first frame with a starter's stats), so takeovers land a couple of seconds after the snap. Bursts are queued up to `takeoverQueueLimit`. The defensive stat keys are not yet verified against live frames (see `src/server/plays.ts`).
 - The feed page lists recent plays for starters, including ones that did not trigger a takeover.
