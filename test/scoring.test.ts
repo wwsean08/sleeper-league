@@ -22,4 +22,9 @@ describe("scoreStats", () => {
   it("treats non-finite values as 0", () => {
     expect(scoreStats({ sack: NaN, pass_int: "a" as unknown as number }, rules)).toBe(0);
   });
+  it("treats inherited property names as unknown", () => {
+    const seen: string[] = [];
+    expect(scoreStats({ constructor: 1, rec_yd: 100 }, { rec_yd: 0.1 }, (k) => seen.push(k))).toBe(10);
+    expect(seen).toEqual(["constructor"]);
+  });
 });
