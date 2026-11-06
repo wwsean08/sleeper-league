@@ -87,9 +87,9 @@ function MatchupView({ matchup, feed, minPoints }: { matchup: Matchup; feed: Pla
   );
 }
 
-export function Spotlight({ store, now }: { store: StoreState; now?: number }) {
+export function Spotlight({ store }: { store: StoreState }) {
   const matchups = store.league?.matchups ?? [];
-  const live = liveMatchupIds(store.league, store.feed, now ?? Date.now());
+  const live = liveMatchupIds(store.league);
   const liveList = matchups.filter((m) => live.has(m.matchupId));
   const list = liveList.length > 0 ? liveList : matchups;
   const seconds = store.snapshot?.ui.rotationSeconds ?? DEFAULT_ROTATION_SECONDS;

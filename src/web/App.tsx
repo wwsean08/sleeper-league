@@ -46,7 +46,7 @@ export function App() {
     hash,
     playlist: ui?.playlist ?? ['standings', 'schedule'],
     playlistSeconds: ui?.playlistSeconds ?? 20,
-    live: hasLiveStarters(store.league, store.feed, now),
+    live: hasLiveStarters(store.league),
     now,
   });
   const View = { standings: Standings, schedule: Schedule, spotlight: Spotlight, feed: Feed }[page];

@@ -63,28 +63,20 @@ describe('snapshot ordering', () => {
 });
 
 describe('hasLiveStarters', () => {
-  const now = 10_000_000;
-  const inv = [{ playerId: 'p1', name: 'P', rosterId: 1, points: 1 }];
-  it('true for a recent play by a starter', () => {
-    expect(hasLiveStarters(league(), [play('a', { at: now - 60_000, involved: inv })], now)).toBe(true);
-  });
-  it('15 minutes exactly is live, 15:00.001 is not', () => {
-    expect(hasLiveStarters(league(), [play('a', { at: now - 15 * 60_000, involved: inv })], now)).toBe(true);
-    expect(hasLiveStarters(league(), [play('a', { at: now - 15 * 60_000 - 1, involved: inv })], now)).toBe(false);
-  });
-  it('true for a starter whose game is in progress, even with no plays at all', () => {
-    const liveStarter = league({
-      matchups: [{ matchupId: 1, sides: [{ rosterId: 1, teamName: 'A', score: 0, starters: [{ playerId: 'p1', name: 'P', position: 'K', points: 0, live: true }] }] }],
+  const withStarter = (live: boolean) =>
+    league({
+      matchups: [{ matchupId: 1, sides: [{ rosterId: 1, teamName: 'A', score: 0, starters: [{ playerId: 'p1', name: 'P', position: 'K', points: 0, live }] }] }],
     });
-    expect(hasLiveStarters(liveStarter, [], now)).toBe(true);
+  it('true while a starter\'s game is in progress, even with no plays at all', () => {
+    expect(hasLiveStarters(withStarter(true))).toBe(true);
   });
-  it('false when starters exist but none is live and no play is recent', () => {
-    expect(hasLiveStarters(league(), [], now)).toBe(false);
+  it('false when no starter is live', () => {
+    expect(hasLiveStarters(withStarter(false))).toBe(false);
+    expect(hasLiveStarters(league())).toBe(false);
   });
-  it('false when stale, non-starter, or no league', () => {
-    expect(hasLiveStarters(league(), [play('a', { at: now - 16 * 60_000, involved: inv })], now)).toBe(false);
-    expect(hasLiveStarters(league(), [play('a', { at: now, involved: [{ ...inv[0]!, playerId: 'zz' }] })], now)).toBe(false);
-    expect(hasLiveStarters(undefined, [play('a', { at: now, involved: inv })], now)).toBe(false);
+  it('false when there is no league yet, or no matchups', () => {
+    expect(hasLiveStarters(undefined)).toBe(false);
+    expect(hasLiveStarters(league({ matchups: [] }))).toBe(false);
   });
 });
 
