@@ -8,13 +8,18 @@ class FakeWS {
   onmessage: ((e: { data: string }) => void) | null = null;
   onclose: ((e: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
+  static throwOnConstruct = false;
   constructor(public url: string) {
+    if (FakeWS.throwOnConstruct) throw new Error(`boom ${url}`);
     FakeWS.instances.push(this);
   }
   send(d: string) {
     this.sent.push(d);
   }
-  close() {}
+  closeCalls = 0;
+  close() {
+    this.closeCalls++;
+  }
   open() {
     this.onopen?.();
   }
@@ -71,6 +76,7 @@ describe("createFeed", () => {
 
   beforeEach(() => {
     FakeWS.instances = [];
+    FakeWS.throwOnConstruct = false;
     t = fakeTime();
     statuses = [];
     events = [];
@@ -187,5 +193,116 @@ describe("createFeed", () => {
     FakeWS.instances[0].drop();
     t.advance(120_000);
     expect(FakeWS.instances.length).toBe(1);
+  });
+
+  it("treats a non-ok join reply as failure with backoff", () => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.recv(["1", "1", "score:nfl", "phx_reply", { response: {}, status: "error" }]);
+    expect(statuses.at(-1)).toBe("paused");
+    expect(ws.closeCalls).toBe(1);
+    t.advance(1000);
+    expect(FakeWS.instances.length).toBe(2);
+  });
+
+  it.each(["phx_error", "phx_close"])("treats channel %s as failure, not forwarded", (ev) => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.recv(OK);
+    ws.recv(["1", null, "score:nfl", ev, {}]);
+    expect(events).toEqual([]);
+    expect(statuses.at(-1)).toBe("paused");
+    expect(ws.closeCalls).toBe(1);
+    t.advance(1000);
+    expect(FakeWS.instances.length).toBe(2);
+  });
+
+  it("survives a throwing constructor and retries with backoff", () => {
+    FakeWS.throwOnConstruct = true;
+    const f = make();
+    f.start();
+    expect(statuses.at(-1)).toBe("paused");
+    FakeWS.throwOnConstruct = false;
+    t.advance(1000);
+    expect(FakeWS.instances.length).toBe(1);
+  });
+
+  it("survives a throwing heartbeat send", () => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.send = () => {
+      throw new Error("x");
+    };
+    t.advance(20_000);
+    expect(statuses.at(-1)).toBe("paused");
+    t.advance(1000);
+    expect(FakeWS.instances.length).toBe(2);
+  });
+
+  it("onerror then onclose yields exactly one reconnect", () => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.onerror?.();
+    ws.drop();
+    t.advance(1000);
+    expect(FakeWS.instances.length).toBe(2);
+    t.advance(2000);
+    expect(FakeWS.instances.length).toBe(2);
+  });
+
+  it("ignores messages from a replaced or stopped socket and malformed frames", () => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.recv(OK);
+    expect(() => ws.onmessage?.({ data: "not json" })).not.toThrow();
+    expect(events).toEqual([]);
+    f.stop();
+    ws.recv([null, null, "score:nfl", "new_play", {}]);
+    expect(events).toEqual([]);
+  });
+
+  it("watchdog: heartbeat replies keep it alive, silence for 45s reconnects", () => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.recv(OK);
+    for (let i = 0; i < 5; i++) {
+      t.advance(20_000);
+      ws.recv([null, String(i + 2), "phoenix", "phx_reply", { response: {}, status: "ok" }]);
+    }
+    expect(statuses.at(-1)).toBe("live");
+    t.advance(44_999);
+    expect(statuses.at(-1)).toBe("live");
+    t.advance(1);
+    expect(statuses.at(-1)).toBe("paused");
+    expect(ws.closeCalls).toBe(1);
+    t.advance(1000);
+    expect(FakeWS.instances.length).toBe(2);
+  });
+
+  it("stop emits paused once, closes the socket, and stops heartbeats", () => {
+    const f = make();
+    f.start();
+    const ws = FakeWS.instances[0];
+    ws.open();
+    ws.recv(OK);
+    f.stop();
+    expect(ws.closeCalls).toBe(1);
+    expect(statuses.filter((s) => s === "paused").length).toBe(1);
+    expect(statuses.at(-1)).toBe("paused");
+    const n = ws.sent.length;
+    t.advance(60_000);
+    expect(ws.sent.length).toBe(n);
   });
 });
