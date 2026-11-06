@@ -22,7 +22,7 @@ const snapshot = (over: Record<string, unknown> = {}): Extract<ServerMessage, { 
   takeover: null,
   status: 'live',
   theme: { colors: { bg: '', surface: '', text: '', accent: '', good: '', alert: '' }, fontFamily: 'x' },
-  ui: { rotationSeconds: 15, takeoverSeconds: 8, playlist: ['standings'], playlistSeconds: 20, pollSeconds: 60 },
+  ui: { rotationSeconds: 15, takeoverSeconds: 8, playlist: ['standings'], playlistSeconds: 20, pollSeconds: 60, spotlightMinPlayPoints: 0.1 },
   leagueName: 'L',
   ...over,
 });

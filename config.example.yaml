@@ -31,6 +31,9 @@ takeoverQueueLimit: 3
 # A starter's rushing/receiving/return gain of at least this many yards is a "long gain" takeover
 # (kicks never count).
 longGainYards: 40
+# The spotlight's recent-plays list only shows plays worth at least this many points (up or down)
+# to the matchup on screen. 0 shows every play, including zero-point ones.
+spotlightMinPlayPoints: 0.1
 # Seconds between Sleeper API polls.
 pollSeconds: 60
 # HTTP port for the server.

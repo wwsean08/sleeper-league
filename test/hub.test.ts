@@ -21,6 +21,7 @@ const cfg: Config = {
   takeoverQueueLimit: 3,
   longGainYards: 40,
   pollSeconds: 60,
+  spotlightMinPlayPoints: 0.1,
   port: 0,
   playlist: ["standings"],
   playlistSeconds: 20,
@@ -99,7 +100,7 @@ describe("buildSnapshot", () => {
     expect(m.type).toBe("snapshot");
     expect("league" in m).toBe(false);
     expect("lastPollOkAt" in m).toBe(false);
-    expect(m).toMatchObject({ ui: { pollSeconds: 60 } });
+    expect(m).toMatchObject({ ui: { pollSeconds: 60, spotlightMinPlayPoints: 0.1 } });
     expect(JSON.stringify(m)).not.toContain(SENTINEL);
   });
   it("includes league and lastPollOkAt once loaded", () => {

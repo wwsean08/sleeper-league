@@ -31,6 +31,7 @@ cp config.example.yaml config.local.yaml
 - `rotationSeconds`: seconds per matchup in the spotlight rotation.
 - `takeoverSeconds`, `takeoverQueueLimit`, `longGainYards`: how long a big-play takeover shows, how many may queue, and the yardage that counts as a long gain (default 40).
 - `pollSeconds`: REST poll interval.
+- `spotlightMinPlayPoints`: the spotlight's recent-plays list only shows plays worth at least this many points (up or down) to the matchup on screen (default 0.1; `0` shows every play). Applies live on config reload. The `#/feed` page is not filtered.
 - `port`: HTTP port (default 3000).
 - `playlist` and `playlistSeconds`: the pages cycled when no game is live. Options are `standings`, `schedule`, `spotlight`, `feed`.
 

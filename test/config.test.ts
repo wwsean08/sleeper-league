@@ -19,6 +19,17 @@ afterEach(() => {
   while (dirs.length) fs.rmSync(dirs.pop()!, { recursive: true, force: true });
 });
 
+describe('spotlightMinPlayPoints', () => {
+  it('can be set, including to 0 to show every play', () => {
+    expect(loadConfig(write('leagueId: "1"\nspotlightMinPlayPoints: 0.5\n')).spotlightMinPlayPoints).toBe(0.5);
+    expect(loadConfig(write('leagueId: "1"\nspotlightMinPlayPoints: 0\n')).spotlightMinPlayPoints).toBe(0);
+  });
+  it('rejects a negative or non-numeric value', () => {
+    expect(() => loadConfig(write('leagueId: "1"\nspotlightMinPlayPoints: -1\n'))).toThrow(ConfigError);
+    expect(() => loadConfig(write('leagueId: "1"\nspotlightMinPlayPoints: lots\n'))).toThrow(ConfigError);
+  });
+});
+
 describe('loadConfig', () => {
   it('applies defaults for a minimal file', () => {
     const c = loadConfig(write('leagueId: "123"\n'), {});
@@ -28,6 +39,7 @@ describe('loadConfig', () => {
     expect(c.takeoverQueueLimit).toBe(3);
     expect(c.longGainYards).toBe(40);
     expect(c.pollSeconds).toBe(60);
+    expect(c.spotlightMinPlayPoints).toBe(0.1);
     expect(c.port).toBe(3000);
     expect(c.playlist).toEqual(['standings', 'schedule']);
     expect(c.playlistSeconds).toBe(20);

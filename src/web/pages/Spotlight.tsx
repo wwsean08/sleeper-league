@@ -9,8 +9,8 @@ type Side = Matchup['sides'][number];
 
 const DEFAULT_ROTATION_SECONDS = 15;
 const MAX_PLAYS = 5;
-// A play must move this matchup by at least this many points (up or down) to be listed.
-const MIN_PLAY_POINTS = 0.1;
+// Used until the first snapshot arrives; the real value is `spotlightMinPlayPoints` from the config.
+const DEFAULT_MIN_PLAY_POINTS = 0.1;
 
 function Fade({ children }: { children: React.ReactNode }) {
   const [shown, setShown] = useState(false);
@@ -51,7 +51,8 @@ function TeamColumn({ side, lead, bye }: { side: Side; lead: boolean; bye: boole
   );
 }
 
-function MatchupView({ matchup, feed }: { matchup: Matchup; feed: PlayEntry[] }) {
+// A play must move this matchup by at least `minPoints` (up or down) to be listed.
+function MatchupView({ matchup, feed, minPoints }: { matchup: Matchup; feed: PlayEntry[]; minPoints: number }) {
   const bye = matchup.sides.length < 2;
   const max = Math.max(...matchup.sides.map((s) => s.score));
   const tied = !bye && matchup.sides[0]!.score === matchup.sides[1]!.score;
@@ -60,7 +61,7 @@ function MatchupView({ matchup, feed }: { matchup: Matchup; feed: PlayEntry[] })
   const matchupPoints = (p: PlayEntry) =>
     Math.round(p.involved.filter((i) => ids.has(i.playerId)).reduce((a, i) => a + i.points, 0) * 100) / 100;
   const plays = feed
-    .filter((p) => p.involved.some((i) => ids.has(i.playerId)) && Math.abs(matchupPoints(p)) >= MIN_PLAY_POINTS)
+    .filter((p) => p.involved.some((i) => ids.has(i.playerId)) && Math.abs(matchupPoints(p)) >= minPoints)
     .slice(0, MAX_PLAYS);
   return (
     <div className="flex h-full flex-col gap-6">
@@ -92,6 +93,7 @@ export function Spotlight({ store, now }: { store: StoreState; now?: number }) {
   const liveList = matchups.filter((m) => live.has(m.matchupId));
   const list = liveList.length > 0 ? liveList : matchups;
   const seconds = store.snapshot?.ui.rotationSeconds ?? DEFAULT_ROTATION_SECONDS;
+  const minPoints = store.snapshot?.ui.spotlightMinPlayPoints ?? DEFAULT_MIN_PLAY_POINTS;
   const [idx, setIdx] = useState(0);
   const count = list.length;
 
@@ -111,7 +113,7 @@ export function Spotlight({ store, now }: { store: StoreState; now?: number }) {
         <span className="text-2xl text-text/60 tabular-nums">{`${(idx % count) + 1} of ${count}`}</span>
       </div>
       <Fade key={current.matchupId}>
-        <MatchupView matchup={current} feed={store.feed} />
+        <MatchupView matchup={current} feed={store.feed} minPoints={minPoints} />
       </Fade>
     </div>
   );

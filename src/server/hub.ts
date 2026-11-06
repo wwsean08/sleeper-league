@@ -8,7 +8,7 @@ import type { LeagueView } from "./league.js";
 import type { PlayEntry } from "./plays.js";
 import type { FeedStatus } from "./sleeper/socket.js";
 
-export type UiConfig = Pick<Config, "rotationSeconds" | "takeoverSeconds" | "playlist" | "playlistSeconds" | "pollSeconds">;
+export type UiConfig = Pick<Config, "rotationSeconds" | "takeoverSeconds" | "playlist" | "playlistSeconds" | "pollSeconds" | "spotlightMinPlayPoints">;
 
 export type ServerMessage =
   | {
@@ -58,6 +58,7 @@ export function buildSnapshot(s: {
       playlist: [...cfg.playlist],
       playlistSeconds: cfg.playlistSeconds,
       pollSeconds: cfg.pollSeconds,
+      spotlightMinPlayPoints: cfg.spotlightMinPlayPoints,
     },
     leagueName: s.leagueName,
   };

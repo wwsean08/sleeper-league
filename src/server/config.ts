@@ -23,6 +23,7 @@ export interface Config {
   takeoverQueueLimit: number;
   longGainYards: number;
   pollSeconds: number;
+  spotlightMinPlayPoints: number;
   port: number;
   playlist: Array<'standings' | 'schedule' | 'spotlight' | 'feed'>;
   playlistSeconds: number;
@@ -57,6 +58,7 @@ const schema = z.object({
   takeoverQueueLimit: z.number().int().positive().default(3),
   longGainYards: z.number().positive().default(40),
   pollSeconds: z.number().positive().default(60),
+  spotlightMinPlayPoints: z.number().min(0).default(0.1),
   port: z.number().int().positive().default(3000),
   playlist: z
     .array(z.enum(['standings', 'schedule', 'spotlight', 'feed']))

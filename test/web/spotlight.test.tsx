@@ -12,13 +12,14 @@ const play = (id: string, pid: string, over: Record<string, unknown> = {}) => ({
 });
 const m1 = { matchupId: 1, sides: [side(1, 'Alpha', 100.25, [st('a1', 'Ann Ace', 12.3)]), side(2, 'Beta', 90, [st('b1', 'Bob Back', 4)])] };
 const m2 = { matchupId: 2, sides: [side(3, 'Gamma', 50, [st('c1', 'Cy Core', 1)]), side(4, 'Delta', 50, [st('d1', 'Di Dash', 2)])] };
-function mk(matchups: unknown[], feed: unknown[] = [], rotationSeconds?: number): StoreState {
+function mk(matchups: unknown[], feed: unknown[] = [], rotationSeconds?: number, spotlightMinPlayPoints?: number): StoreState {
+  const ui = { ...(rotationSeconds ? { rotationSeconds } : {}), ...(spotlightMinPlayPoints !== undefined ? { spotlightMinPlayPoints } : {}) };
   return {
     league: { week: 7, standings: [], matchups, estimating: false },
     feed,
     takeover: null,
     status: 'live',
-    ...(rotationSeconds ? { snapshot: { ui: { rotationSeconds } } } : {}),
+    ...(Object.keys(ui).length ? { snapshot: { ui } } : {}),
   } as unknown as StoreState;
 }
 
@@ -100,6 +101,25 @@ describe('Spotlight', () => {
       render(<Spotlight store={mk([m1], feed)} now={NOW} />);
       for (const id of ['q1', 'q2', 'q3', 'q4', 'q5']) expect(screen.getByText(`desc-${id}`)).toBeInTheDocument();
       expect(screen.queryByText('desc-q6')).toBeNull();
+    });
+    it('uses the configured threshold from the snapshot', () => {
+      const feed = [withPts('p03', 0.3), withPts('p15', 1.5), withPts('p5', 5)];
+      render(<Spotlight store={mk([m1], feed, undefined, 1)} now={NOW} />);
+      expect(screen.queryByText('desc-p03')).toBeNull();
+      expect(screen.getByText('desc-p15')).toBeInTheDocument();
+      expect(screen.getByText('desc-p5')).toBeInTheDocument();
+    });
+    it('a threshold of 0 shows every play, including zero-point ones', () => {
+      render(<Spotlight store={mk([m1], [withPts('z', 0), withPts('t', 0.02)], undefined, 0)} now={NOW} />);
+      expect(screen.getByText('desc-z')).toBeInTheDocument();
+      expect(screen.getByText('desc-t')).toBeInTheDocument();
+    });
+    it('changing the threshold in a new snapshot applies to the rows immediately', () => {
+      const feed = [withPts('p03', 0.3)];
+      const { rerender } = render(<Spotlight store={mk([m1], feed, undefined, 1)} now={NOW} />);
+      expect(screen.queryByText('desc-p03')).toBeNull();
+      rerender(<Spotlight store={mk([m1], feed, undefined, 0.1)} now={NOW} />);
+      expect(screen.getByText('desc-p03')).toBeInTheDocument();
     });
     it('shows "No plays yet" when every recent play is under the threshold', () => {
       render(<Spotlight store={mk([m1], [withPts('z1', 0), withPts('z2', 0.02)])} now={NOW} />);
