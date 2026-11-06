@@ -163,6 +163,7 @@ export function createFeed(opts: {
     start() {
       if (running) return;
       running = true;
+      attempt = 0; // a fresh start (e.g. new token) begins at the base backoff
       connect();
     },
     stop() {

@@ -157,6 +157,23 @@ describe("createFeed", () => {
     expect(FakeWS.instances.length).toBe(3);
   });
 
+  it("start() after stop() resets the backoff", () => {
+    const f = make();
+    f.start();
+    for (let i = 0; i < 5; i++) {
+      FakeWS.instances[i].drop();
+      t.advance(60_000);
+    }
+    f.stop();
+    f.start();
+    const n = FakeWS.instances.length;
+    FakeWS.instances[n - 1].drop();
+    t.advance(999);
+    expect(FakeWS.instances.length).toBe(n);
+    t.advance(1);
+    expect(FakeWS.instances.length).toBe(n + 1);
+  });
+
   it("caps backoff at 60s", () => {
     const f = make();
     f.start();
