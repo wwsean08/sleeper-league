@@ -6,8 +6,8 @@
 #   sudo systemctl enable --now sleeper-tv
 #   journalctl -u sleeper-tv -f        # logs
 #
-# To change the install location, edit WorkingDirectory below (default /opt/sleeper-league)
-# and ReadWritePaths if you keep config elsewhere. To change the user, edit User/Group.
+# To change the install location, edit WorkingDirectory below (default /opt/sleeper-league).
+# To change the user, edit User/Group.
 # The user must be able to read the whole project directory, including config.local.yaml,
 # the logo file and the token file.
 #

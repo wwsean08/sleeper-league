@@ -52,6 +52,15 @@ describe('loadConfig', () => {
     expect(loadConfig(p, {}).token).toBe('secret-abc');
   });
 
+  it('resolves a relative tokenFile against the config file directory', () => {
+    const dir = tmp();
+    fs.writeFileSync(path.join(dir, 'rel.token'), 'reltok\n');
+    const p = path.join(dir, 'config.yaml');
+    fs.writeFileSync(p, 'leagueId: "1"\ntokenFile: ./rel.token\n');
+    expect(path.resolve(process.cwd())).not.toBe(dir);
+    expect(loadConfig(p, {}).token).toBe('reltok');
+  });
+
   it('throws ConfigError for unreadable tokenFile', () => {
     const p = write('leagueId: "1"\ntokenFile: /nonexistent/nope\n');
     expect(() => loadConfig(p, {})).toThrow(ConfigError);

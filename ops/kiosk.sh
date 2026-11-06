@@ -56,7 +56,7 @@ find_browser() {
 BROWSER="$(find_browser)" || { log "no chromium-browser, chromium or google-chrome found"; exit 1; }
 
 if ! wait_for_server; then
-  log "server at ${BASE} did not answer within ${WAIT_SECONDS}s; launching the browser anyway (it will keep retrying via relaunch)"
+  log "server at ${BASE} did not answer within ${WAIT_SECONDS}s; launching the browser anyway (Chromium shows an error page until the app is reachable; the page's own reconnect recovers once the server is up)"
 fi
 
 # X11 only: no screen saver / DPMS blanking.
@@ -69,7 +69,20 @@ fi
 # X11 only: hide the mouse cursor.
 if [ -n "${DISPLAY:-}" ] && command -v unclutter >/dev/null 2>&1; then
   unclutter -idle 0.1 -root &
+  UNCLUTTER_PID=$!
 fi
+
+UNCLUTTER_PID="${UNCLUTTER_PID:-}"
+CHROME_PID=""
+cleanup() {
+  trap - EXIT
+  [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null
+  [ -n "$UNCLUTTER_PID" ] && kill "$UNCLUTTER_PID" 2>/dev/null
+  return 0
+}
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 # Relaunch Chromium whenever it exits or crashes.
 while true; do
@@ -81,9 +94,12 @@ while true; do
     --autoplay-policy=no-user-gesture-required \
     --check-for-update-interval=31536000 \
     --disable-features=TranslateUI \
-    "$URL"
+    "$URL" &
+  CHROME_PID=$!
+  wait "$CHROME_PID"
   log "browser exited (status $?); relaunching in 5s"
+  CHROME_PID=""
   sleep 5
-  # If the server is down, wait for it again so we do not show an error page.
+  # If the server is down, wait for it again before relaunching.
   wait_for_server || true
 done

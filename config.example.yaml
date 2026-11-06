@@ -6,7 +6,7 @@ leagueId: "123456789012345678"
 # Sleeper token. Prefer the SLEEPER_TOKEN environment variable or tokenFile; never commit a real token.
 # Precedence: SLEEPER_TOKEN variable > tokenFile > token.
 # token: ""
-# Path to a file containing only the token (whitespace trimmed).
+# Path to a file containing only the token (whitespace trimmed). Relative paths resolve against this config file's directory.
 # tokenFile: ./secrets.token
 
 theme:

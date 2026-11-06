@@ -34,7 +34,7 @@ cp config.example.yaml config.local.yaml
 - `port`: HTTP port (default 3000).
 - `playlist` and `playlistSeconds`: the pages cycled when no game is live. Options are `standings`, `schedule`, `spotlight`, `feed`.
 
-The server watches the config file and reloads it while running; if a reload fails it keeps the previous config and logs the error. Restart after changing `port` or the token.
+The server watches the config file and reloads it while running; if a reload fails it keeps the previous config and logs the error. Editing `token` or the `tokenFile` path in the config is picked up live (the feed restarts). A restart is needed only after changing `port`, or after changing `SLEEPER_TOKEN` in the environment or the systemd environment file (the environment is read at process start).
 
 ## Sleeper token (live feed)
 
@@ -47,10 +47,10 @@ The live play-by-play uses Sleeper's websocket, which needs your login token.
 Treat it like a password. Provide it one of these ways (precedence in this order):
 
 1. `SLEEPER_TOKEN` environment variable (for systemd, put `SLEEPER_TOKEN=...` in `/etc/sleeper-tv.env`, `chmod 600`).
-2. `tokenFile`: a file containing only the token, e.g. `tokenFile: ./secrets.token`, then `chmod 600 secrets.token`.
+2. `tokenFile`: a file containing only the token, e.g. `tokenFile: ./secrets.token` (a relative path resolves against the config file's directory, like `theme.logo`), then `chmod 600 secrets.token`.
 3. `token` in the config (least preferred).
 
-The token expires roughly once a year. When it lapses (or is invalid), the spotlight and feed pages show a "Live feed paused" banner while standings, schedule and scores keep updating from the REST poll. Paste in a fresh token and restart to recover.
+The token expires roughly once a year. When it lapses (or is invalid), the spotlight and feed pages show a "Live feed paused" banner while standings, schedule and scores keep updating from the REST poll. Paste in a fresh token to recover: if it is in the config, save the file; if it is in `tokenFile`, replace the file contents and then `touch config.local.yaml` (the watcher only watches the config file, not the token file) or restart; if it is `SLEEPER_TOKEN`, update the variable and restart the service.
 
 ## Run
 
@@ -111,6 +111,14 @@ ops/kiosk.sh              # or: ops/kiosk.sh '#/spotlight'
 Screen blanking: `kiosk.sh` runs `xset s off; xset -dpms; xset s noblank` on X11. On Wayland that does nothing; turn blanking off in Raspberry Pi Configuration (Display > Screen Blanking) or `raspi-config`. Set the OS to auto-login to the desktop.
 
 Hardware: a Raspberry Pi 4 is the performance floor. Pi 3 is not supported. An Intel NUC-class mini PC works well.
+
+## First-run checklist (do this on your Pi)
+
+The hardware end-to-end check has not been run by the author; please walk through it once on the real device:
+
+1. Reboot: the kiosk should come up showing standings.
+2. Unplug the network for about 30 seconds and replug: a banner should appear and then clear with no manual action.
+3. Put an invalid token in and restart: the spotlight and feed pages show "Live feed paused" while standings and scores continue from the REST poll.
 
 ## Troubleshooting
 

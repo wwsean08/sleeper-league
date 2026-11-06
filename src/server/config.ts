@@ -90,7 +90,7 @@ export function loadConfig(path: string, environment: NodeJS.ProcessEnv = proces
   let token = fileToken;
   if (tokenFile) {
     try {
-      token = fs.readFileSync(tokenFile, 'utf8').trim();
+      token = fs.readFileSync(nodePath.resolve(nodePath.dirname(path), tokenFile), 'utf8').trim();
     } catch {
       throw new ConfigError(`Cannot read tokenFile ${tokenFile}`);
     }
