@@ -36,6 +36,24 @@ describe('Takeover', () => {
     expect(screen.getByText(/54/)).toBeInTheDocument();
     expect((container.firstChild as HTMLElement).className).toContain('fixed inset-0');
   });
+  it("shows both sides of the affected matchup, highlighting the involved side", () => {
+    render(<Takeover play={play('p1')} seconds={8} league={league} />);
+    expect(screen.getAllByTestId('takeover-matchup')).toHaveLength(1);
+    const sides = screen.getAllByTestId('takeover-side');
+    expect(sides.map((s) => s.getAttribute('data-involved'))).toEqual(['true', 'false']);
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+    expect(screen.getByText('90.0')).toBeInTheDocument();
+    expect(sides[1]!.className).toContain('opacity-60');
+  });
+  it('points are text-good when non-negative and text-alert when negative', () => {
+    render(<Takeover play={play('p1')} seconds={8} league={league} />);
+    expect(screen.getByText('+12.3').className).toContain('text-good');
+    cleanup();
+    render(<Takeover play={play('p2', { kind: 'turnover', involved: [{ playerId: 'q', name: 'Q B', rosterId: 2, points: -2 }] })} seconds={8} league={league} />);
+    const pts = screen.getByText('-2.0');
+    expect(pts.className).toContain('text-alert');
+    expect(pts.className).not.toContain('text-good');
+  });
   it('labels other kinds', () => {
     render(<Takeover play={play('p2', { kind: 'long_gain' })} seconds={8} league={league} />);
     expect(screen.getByText('LONG GAIN')).toBeInTheDocument();
