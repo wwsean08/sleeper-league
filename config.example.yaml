@@ -1,0 +1,41 @@
+# Copy to config.local.yaml and edit. Only leagueId is required.
+
+# Sleeper league id (string of digits).
+leagueId: "123456789012345678"
+
+# Sleeper token. Prefer the SLEEPER_TOKEN environment variable or tokenFile; never commit a real token.
+# Precedence: SLEEPER_TOKEN variable > tokenFile > token.
+# token: ""
+# Path to a file containing only the token (whitespace trimmed).
+# tokenFile: ./secrets.token
+
+theme:
+  # Optional logo URL or path shown in the header.
+  # logo: /logo.png
+  colors:
+    bg: "#0e1a2b"        # page background
+    surface: "#16263d"   # cards/panels
+    text: "#ffffff"      # primary text
+    accent: "#ffb300"    # highlights
+    good: "#7cfc9a"      # positive events
+    alert: "#ff5722"     # negative/urgent events
+  fontFamily: "system-ui, sans-serif"
+
+# Seconds each matchup is shown during rotation.
+rotationSeconds: 15
+# Seconds a big-play takeover stays on screen.
+takeoverSeconds: 8
+# Max queued takeovers waiting to display.
+takeoverQueueLimit: 3
+# Gains of at least this many yards count as a "long gain" takeover.
+longGainYards: 40
+# Seconds between Sleeper API polls.
+pollSeconds: 60
+# HTTP port for the server.
+port: 3000
+# Screens shown when no games are live, in order. Options: standings, schedule, spotlight, feed.
+playlist:
+  - standings
+  - schedule
+# Seconds each playlist screen is shown.
+playlistSeconds: 20
