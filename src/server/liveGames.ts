@@ -1,46 +1,108 @@
 /**
- * Tracks which NFL games are in progress, from `score_updated` frames on the `score:nfl` topic.
- * A frame's metadata carries `status` ("inprogress" in the sample capture), `has_started`, `closed`,
- * `home_team` and `away_team`. The other status strings are not all verified, so "live" is defined by
- * exclusion: started, not closed, and not one of the known finished statuses.
+ * Tracks which NFL teams are in a game that is being played right now.
+ *
+ * A game is active from the moment it starts until it ends, and three independent signals feed that:
+ *  - game status, from `score_updated` frames on the live socket or from the public scores poll
+ *    (`metadata.status`, `has_started`, `closed`, `home_team`, `away_team`);
+ *  - plays: any play frame for a game, even one that involves nobody in the league, proves that game is under way;
+ *  - a finished status (the only thing that ENDS a game; a play can start one but can never end one).
+ *
+ * Statuses go stale after STATUS_TTL_MS without a refresh and play activity after PLAY_TTL_MS of silence, so a
+ * lost source cannot leave a team active forever. Time is always passed in so this stays testable.
  */
 const FINISHED_STATUSES = new Set(["complete", "closed", "final"]);
 
-export function isGameLive(meta: unknown): boolean {
+/** A status refresh (frame or poll) keeps a game active this long; the 30s poll and frequent frames renew it. */
+export const STATUS_TTL_MS = 5 * 60_000;
+/** Play-only activity lasts this long after the last play (covers halftime and ordinary delays). */
+export const PLAY_TTL_MS = 30 * 60_000;
+
+export function isGameFinished(meta: unknown): boolean {
   if (!meta || typeof meta !== "object") return false;
   const m = meta as Record<string, unknown>;
-  if (m.has_started !== true || m.closed === true) return false;
-  return !(typeof m.status === "string" && FINISHED_STATUSES.has(m.status));
+  return m.closed === true || (typeof m.status === "string" && FINISHED_STATUSES.has(m.status));
 }
 
-export class LiveGames {
-  private readonly games = new Map<string, readonly string[]>(); // game_id -> [home, away] while live
+export function isGameLive(meta: unknown): boolean {
+  if (!meta || typeof meta !== "object") return false;
+  return (meta as Record<string, unknown>).has_started === true && !isGameFinished(meta);
+}
 
-  /** Feed one `score_updated` payload. Returns true when the set of live teams changed. */
-  update(payload: any): boolean {
+interface Game {
+  teams: readonly string[];
+  finished: boolean;
+  statusLiveAt?: number; // last time a status said the game was in progress
+  lastPlayAt?: number; // last time any play frame arrived for the game
+}
+
+const validTeams = (list: unknown[]): string[] => list.filter((t): t is string => typeof t === "string" && t !== "");
+
+export class LiveGames {
+  private readonly games = new Map<string, Game>();
+
+  private active(g: Game, now: number): boolean {
+    if (g.finished) return false;
+    const byStatus = g.statusLiveAt !== undefined && now - g.statusLiveAt <= STATUS_TTL_MS;
+    const byPlay = g.lastPlayAt !== undefined && now - g.lastPlayAt <= PLAY_TTL_MS;
+    return byStatus || byPlay;
+  }
+
+  /** Run a mutation and report whether the set of active teams changed as a result. */
+  private changed(now: number, mutate: () => void): boolean {
+    const before = [...this.teams(now)].sort().join(",");
+    mutate();
+    return before !== [...this.teams(now)].sort().join(",");
+  }
+
+  /** Feed a game status: a `score_updated` payload or one entry of the scores poll. */
+  update(payload: any, now: number): boolean {
     const id = payload?.game_id;
     const meta = payload?.metadata;
     if (id == null || !meta || typeof meta !== "object") return false;
-    const teams = [meta.home_team, meta.away_team].filter((t): t is string => typeof t === "string" && t !== "");
+    const teams = validTeams([meta.home_team, meta.away_team]);
     if (teams.length === 0) return false;
-    const key = String(id);
-    const before = this.games.get(key);
-    if (isGameLive(meta)) {
-      if (before && before.length === teams.length && before.every((t, i) => t === teams[i])) return false;
-      this.games.set(key, teams);
-      return true;
-    }
-    return this.games.delete(key);
+    return this.changed(now, () => {
+      const g = this.games.get(String(id)) ?? { teams, finished: false };
+      g.teams = teams;
+      if (isGameFinished(meta)) {
+        g.finished = true; // game ids are unique per game: once over, always over
+        g.statusLiveAt = undefined;
+      } else if (isGameLive(meta)) {
+        g.statusLiveAt = now;
+      } else {
+        g.statusLiveAt = undefined; // not started yet (or odd status): says nothing about plays seen
+      }
+      this.games.set(String(id), g);
+    });
   }
 
-  teams(): ReadonlySet<string> {
-    return new Set([...this.games.values()].flat());
+  /** A play frame arrived for a game. `teams` are the play's own team and opponent. */
+  markPlay(gameId: unknown, teams: unknown[], now: number): boolean {
+    if (gameId == null) return false;
+    const id = String(gameId);
+    const known = this.games.get(id);
+    if (known?.finished) return false;
+    const named = validTeams(teams);
+    const use = named.length > 0 ? named : (known?.teams ?? []);
+    if (use.length === 0) return false;
+    return this.changed(now, () => {
+      const g = known ?? { teams: use, finished: false };
+      if (named.length > 0) g.teams = named;
+      g.lastPlayAt = now;
+      this.games.set(id, g);
+    });
   }
 
-  /** Forget everything (e.g. the feed dropped, so we can no longer vouch for any game being live). */
-  clear(): boolean {
-    const had = this.games.size > 0;
-    this.games.clear();
-    return had;
+  /** The feed dropped: we can no longer vouch for play-derived activity. Status-derived activity stays. */
+  dropPlayActivity(now: number): boolean {
+    return this.changed(now, () => {
+      for (const g of this.games.values()) g.lastPlayAt = undefined;
+    });
+  }
+
+  teams(now: number): ReadonlySet<string> {
+    const out = new Set<string>();
+    for (const g of this.games.values()) if (this.active(g, now)) for (const t of g.teams) out.add(t);
+    return out;
   }
 }

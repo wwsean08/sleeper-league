@@ -124,7 +124,7 @@ function main(): void {
       if (myGen !== gen || !rules) return; // league changed mid-poll; results are stale
       if (!league) {
         league = new LeagueState(rules, players);
-        league.setLiveTeams(liveGames.teams());
+        league.setLiveTeams(liveGames.teams(Date.now()));
         pipeline = new PlayPipeline({ league, rules, cfg: () => cfg, onFeed, onTakeover });
       }
       const key = startersKey(matchups);
@@ -153,7 +153,7 @@ function main(): void {
 
   // Push the current live-game teams into the league view and tell the browsers if anything changed.
   function syncLiveTeams(): void {
-    if (league?.setLiveTeams(liveGames.teams())) broadcastLeague(league);
+    if (league?.setLiveTeams(liveGames.teams(Date.now()))) broadcastLeague(league);
   }
 
   function onEvent(event: string, payload: any): void {
@@ -164,8 +164,11 @@ function main(): void {
         if (change) broadcastLeague(league);
       } else if (event === "new_play" || event === "updated_play") {
         pipeline?.handle(event, payload);
+        // Any play frame, even one involving nobody in the league, proves that game is under way.
+        liveGames.markPlay(payload?.game_id, [payload?.metadata?.team, payload?.metadata?.opponent], Date.now());
+        syncLiveTeams();
       } else if (event === "score_updated") {
-        if (liveGames.update(payload)) syncLiveTeams();
+        if (liveGames.update(payload, Date.now())) syncLiveTeams();
       }
     } catch (e) {
       console.warn(`[feed] ${event} handling failed: ${short(e)}`);
@@ -183,7 +186,7 @@ function main(): void {
     onStatus: (s) => {
       status = s;
       // Without the feed we cannot vouch that any game is still live, so drop the highlight.
-      if (s !== "live" && liveGames.clear()) syncLiveTeams();
+      if (s !== "live" && liveGames.dropPlayActivity(Date.now())) syncLiveTeams();
       hub.broadcast({ type: "status", status: s });
     },
   });
@@ -202,6 +205,7 @@ function main(): void {
   const tickTimer = setInterval(() => {
     try {
       pipeline?.tick();
+      syncLiveTeams(); // activity expires with time, so re-check every tick
     } catch (e) {
       console.warn(`[tick] ${short(e)}`);
     }

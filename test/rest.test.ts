@@ -60,11 +60,11 @@ describe("rest", () => {
   it("parses nflState and league", async () => {
     const rest = createRest(
       fakeFetch({
-        "/state/nfl": { week: 9, season_type: "regular" },
+        "/state/nfl": { week: 9, season_type: "regular", season: "2026" },
         "/league/1": { name: "L", scoring_settings: { pass_td: 4 }, roster_positions: ["QB"] },
       }),
     );
-    expect(await rest.nflState()).toEqual({ week: 9, seasonType: "regular" });
+    expect(await rest.nflState()).toEqual({ week: 9, seasonType: "regular", season: "2026" });
     expect(await rest.league("1")).toEqual({ name: "L", scoringSettings: { pass_td: 4 }, rosterPositions: ["QB"] });
   });
 

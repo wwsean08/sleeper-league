@@ -44,9 +44,9 @@ export function createRest(
   let playersCache: { at: number; value: Map<string, PlayerInfo> } | undefined;
 
   return {
-    async nflState(): Promise<{ week: number; seasonType: string }> {
-      const s = await get<{ week: number; season_type: string }>("/state/nfl");
-      return { week: s.week, seasonType: s.season_type };
+    async nflState(): Promise<{ week: number; seasonType: string; season: string }> {
+      const s = await get<{ week: number; season_type: string; season: string }>("/state/nfl");
+      return { week: s.week, seasonType: s.season_type, season: String(s.season) };
     },
 
     async league(id: string): Promise<{ name: string; scoringSettings: ScoringSettings; rosterPositions: string[] }> {
