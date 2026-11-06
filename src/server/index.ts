@@ -6,11 +6,13 @@ import { LeagueState } from "./league.js";
 import { LiveGames } from "./liveGames.js";
 import { PlayPipeline, type PlayEntry } from "./plays.js";
 import { createRest } from "./sleeper/rest.js";
+import { fetchScores } from "./sleeper/scores.js";
 import { createFeed, type FeedStatus } from "./sleeper/socket.js";
 import type { Matchup, PlayerInfo, ScoringSettings } from "../shared/types.js";
 
 const TICK_MS = 500;
 const TOPIC = "score:nfl";
+const SCORES_POLL_MS = 30_000;
 
 /** First line of an error message only; never includes request URLs with secrets (REST has none). */
 const short = (e: unknown) => String((e as Error)?.message ?? e).split("\n")[0];
@@ -145,6 +147,28 @@ function main(): void {
     }
   }
 
+  // Game status from Sleeper's public scores query. Needs no token and no socket, so it keeps "which games are
+  // being played" accurate even when the live feed is down.
+  let scoresPolling = false;
+  let scoresFailing = false;
+  async function pollScores(): Promise<void> {
+    if (scoresPolling) return;
+    scoresPolling = true;
+    try {
+      const { week, seasonType, season } = await rest.nflState();
+      const games = await fetchScores({ season, seasonType, week });
+      const now = Date.now();
+      for (const g of games) liveGames.update(g, now);
+      syncLiveTeams();
+      scoresFailing = false;
+    } catch (e) {
+      if (!scoresFailing) console.warn(`[scores] failed, will keep retrying: ${short(e)}`); // log once per outage
+      scoresFailing = true;
+    } finally {
+      scoresPolling = false;
+    }
+  }
+
   let pollTimer: NodeJS.Timeout | undefined;
   function schedulePoll(): void {
     clearInterval(pollTimer);
@@ -257,6 +281,8 @@ function main(): void {
 
   void poll();
   schedulePoll();
+  void pollScores();
+  const scoresTimer = setInterval(() => void pollScores(), SCORES_POLL_MS);
   maybeStartFeed();
 
   let stopping = false;
@@ -266,6 +292,7 @@ function main(): void {
     console.log("[server] shutting down");
     clearInterval(pollTimer);
     clearInterval(tickTimer);
+    clearInterval(scoresTimer);
     clearTimeout(takeoverTimer);
     stopWatch();
     stopFeed();
