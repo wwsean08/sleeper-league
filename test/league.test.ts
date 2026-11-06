@@ -24,6 +24,17 @@ const fresh = () => {
 };
 
 describe("LeagueState", () => {
+  it("ignores stat updates for a different numeric week", () => {
+    const l = fresh();
+    expect(l.isCurrentWeek(3)).toBe(true);
+    expect(l.isCurrentWeek(4)).toBe(false);
+    expect(l.isCurrentWeek(undefined)).toBe(true);
+    expect(l.isCurrentWeek("4")).toBe(true);
+    expect(l.applyStatUpdate("p1", { rec_yd: 100 }, 2)).toBeUndefined();
+    expect(l.view().matchups[0].sides[0].score).toBe(10);
+    expect(l.view().matchups[0].sides[0].starters[0].points).toBe(0);
+    expect(l.applyStatUpdate("p1", { rec_yd: 100 }, 3)!.matchupScores[1]).toBe(20);
+  });
   it("ignores bench players", () => {
     const l = fresh();
     expect(l.applyStatUpdate("p2", { rec_yd: 100 })).toBeUndefined();

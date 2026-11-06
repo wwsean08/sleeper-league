@@ -82,11 +82,18 @@ export class LeagueState {
     }
   }
 
+  /** False only when `week` is a number other than the loaded week (stale/next-week frames are ignored). */
+  isCurrentWeek(week: unknown): boolean {
+    return typeof week !== "number" || week === this.week;
+  }
+
   starterOwner(playerId: string): number | undefined {
     return this.starterIndex.get(playerId)?.rosterId;
   }
 
-  applyStatUpdate(playerId: string, cumulative: Record<string, number>): ScoreChange | undefined {
+  /** `week` is the payload's week; a numeric week other than the loaded one is ignored. */
+  applyStatUpdate(playerId: string, cumulative: Record<string, number>, week?: unknown): ScoreChange | undefined {
+    if (!this.isCurrentWeek(week)) return undefined;
     const newTotal = scoreStats(cumulative, this.rules, this.onUnknown);
     const prev = this.lastSeen.get(playerId) ?? 0;
     this.lastSeen.set(playerId, newTotal); // recorded for bench players too

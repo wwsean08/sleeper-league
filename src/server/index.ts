@@ -149,7 +149,7 @@ function main(): void {
     try {
       if (event === "stat_updated") {
         if (!league || payload?.player_id == null || typeof payload.stats !== "object" || !payload.stats) return;
-        const change = league.applyStatUpdate(String(payload.player_id), payload.stats);
+        const change = league.applyStatUpdate(String(payload.player_id), payload.stats, payload.week);
         if (change) hub.broadcast({ type: "league", league: league.view() });
       } else if (event === "new_play" || event === "updated_play") {
         pipeline?.handle(event, payload);
