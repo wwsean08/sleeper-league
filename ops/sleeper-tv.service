@@ -1,0 +1,54 @@
+# systemd unit for the Sleeper League TV server.
+#
+# Install:
+#   sudo cp ops/sleeper-tv.service /etc/systemd/system/sleeper-tv.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sleeper-tv
+#   journalctl -u sleeper-tv -f        # logs
+#
+# To change the install location, edit WorkingDirectory below (default /opt/sleeper-league)
+# and ReadWritePaths if you keep config elsewhere. To change the user, edit User/Group.
+# The user must be able to read the whole project directory, including config.local.yaml,
+# the logo file and the token file.
+#
+# ExecStart uses `npm start`, which runs the project's pinned tsx (node_modules/.bin/tsx)
+# against src/server/index.ts. That keeps the unit identical to the manual run command and
+# needs no separate build of the server. The web UI must still be built once (`npm run build`).
+# `/usr/bin/env npm` resolves npm via PATH; if node was installed with nvm/fnm, set PATH below
+# to include its bin directory (or symlink node/npm into /usr/local/bin).
+#
+# The server reads config.local.yaml from WorkingDirectory. To use another file, append it:
+#   ExecStart=/usr/bin/env npm start -- /etc/sleeper-tv/config.yaml
+# (relative theme.logo paths resolve against that file's directory).
+
+[Unit]
+Description=Sleeper League TV display server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sleeper
+Group=sleeper
+WorkingDirectory=/opt/sleeper-league
+# Optional file containing a line like: SLEEPER_TOKEN=xxxxxxxx   (chmod 600, owned by root or sleeper).
+# The leading "-" makes the file optional (token may come from tokenFile in the config instead).
+EnvironmentFile=-/etc/sleeper-tv.env
+Environment=NODE_ENV=production
+#Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env npm start
+Restart=always
+RestartSec=5
+
+# Hardening. ProtectSystem=full makes /usr, /boot and /etc read-only; the app only reads its
+# config, logo and dist/web, and writes nothing, so the project directory needs no write access.
+# ProtectHome is deliberately NOT set so a project under /home/<user> still works.
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

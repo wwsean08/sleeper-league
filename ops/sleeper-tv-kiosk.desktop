@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Sleeper TV Kiosk
+Comment=Fullscreen Sleeper League display
+# Adjust the path to where the project is installed.
+Exec=/opt/sleeper-league/ops/kiosk.sh
+X-GNOME-Autostart-enabled=true
