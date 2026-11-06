@@ -1,4 +1,5 @@
 import type { StoreState } from '../store';
+import { EstimatingBadge } from '../components/StaleBanner';
 
 type Side = { rosterId: number; teamName: string; score: number };
 
@@ -26,7 +27,10 @@ export function Schedule({ store }: { store: StoreState }) {
   const { cols, rows, name, score } = scheduleLayout(league.matchups.length);
   return (
     <div className="flex h-full flex-col gap-4">
-      <h2 className="text-5xl font-bold text-accent">{`Week ${league.week} Schedule`}</h2>
+      <div className="flex items-center gap-6">
+        <h2 className="text-5xl font-bold text-accent">{`Week ${league.week} Schedule`}</h2>
+        <EstimatingBadge estimating={league.estimating} />
+      </div>
       {league.matchups.length === 0 ? (
         <div className="text-4xl text-text">No matchups this week</div>
       ) : (

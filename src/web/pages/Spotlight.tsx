@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { liveMatchupIds, type StoreState } from '../store';
 import type { LeagueView } from '../../server/league';
 import type { PlayEntry } from '../../server/plays';
+import { EstimatingBadge } from '../components/StaleBanner';
 
 type Matchup = LeagueView['matchups'][number];
 type Side = Matchup['sides'][number];
@@ -84,11 +85,15 @@ export function Spotlight({ store, now }: { store: StoreState; now?: number }) {
     return () => clearInterval(t);
   }, [seconds, count]);
 
+  if (!store.league) return <div className="text-4xl text-text">Waiting for league data…</div>;
   if (count === 0) return <div className="text-5xl text-text">No matchups right now</div>;
   const current = list[idx % count]!;
   return (
     <div className="relative h-full">
-      <div className="absolute right-0 top-0 text-2xl text-text/60 tabular-nums">{`${(idx % count) + 1} of ${count}`}</div>
+      <div className="absolute right-0 top-0 flex items-center gap-4">
+        <EstimatingBadge estimating={store.league.estimating} />
+        <span className="text-2xl text-text/60 tabular-nums">{`${(idx % count) + 1} of ${count}`}</span>
+      </div>
       <Fade key={current.matchupId}>
         <MatchupView matchup={current} feed={store.feed} />
       </Fade>

@@ -4,8 +4,8 @@ import { Schedule } from '../../src/web/pages/Schedule';
 import type { StoreState } from '../../src/web/store';
 
 const side = (rosterId: number, teamName: string, score: number) => ({ rosterId, teamName, score, starters: [] });
-function mk(matchups: unknown[]): StoreState {
-  return { league: { week: 7, standings: [], matchups, estimating: false }, feed: [], status: 'live', connected: true } as unknown as StoreState;
+function mk(matchups: unknown[], estimating = false): StoreState {
+  return { league: { week: 7, standings: [], matchups, estimating }, feed: [], status: 'live', connected: true } as unknown as StoreState;
 }
 
 afterEach(cleanup);
@@ -25,6 +25,14 @@ describe('Schedule', () => {
     expect(screen.getByText('100.3').className).toContain('text-good');
     expect(screen.getByText('90.0').className).not.toContain('text-good');
     for (const s of screen.getAllByText('50.0')) expect(s.className).not.toContain('text-good');
+  });
+  it('shows the estimating badge only when the league is estimating', () => {
+    const ms = [{ matchupId: 1, sides: [side(1, 'Alpha', 1), side(2, 'Beta', 2)] }];
+    render(<Schedule store={mk(ms)} />);
+    expect(screen.queryByText('estimating')).toBeNull();
+    cleanup();
+    render(<Schedule store={mk(ms, true)} />);
+    expect(screen.getByText('estimating')).toBeInTheDocument();
   });
   it('shows TBD for a one-sided matchup', () => {
     render(<Schedule store={mk([{ matchupId: 1, sides: [side(1, 'Alpha', 0)] }])} />);

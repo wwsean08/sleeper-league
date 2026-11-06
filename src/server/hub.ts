@@ -8,12 +8,15 @@ import type { LeagueView } from "./league.js";
 import type { PlayEntry } from "./plays.js";
 import type { FeedStatus } from "./sleeper/socket.js";
 
-export type UiConfig = Pick<Config, "rotationSeconds" | "takeoverSeconds" | "playlist" | "playlistSeconds">;
+export type UiConfig = Pick<Config, "rotationSeconds" | "takeoverSeconds" | "playlist" | "playlistSeconds" | "pollSeconds">;
 
 export type ServerMessage =
   | {
       type: "snapshot";
-      league: LeagueView;
+      /** Absent until the first successful REST load, so pages can show "Waiting for league data…". */
+      league?: LeagueView;
+      /** Epoch ms of the last successful REST poll; absent before the first one. */
+      lastPollOkAt?: number;
       feed: PlayEntry[];
       takeover: PlayEntry | null;
       status: FeedStatus;
@@ -21,7 +24,7 @@ export type ServerMessage =
       ui: UiConfig;
       leagueName: string;
     }
-  | { type: "league"; league: LeagueView }
+  | { type: "league"; league: LeagueView; lastPollOkAt?: number }
   | { type: "feed"; play: PlayEntry }
   | { type: "takeover"; play: PlayEntry }
   | { type: "status"; status: FeedStatus };
@@ -31,7 +34,8 @@ const PING_MS = 15_000;
 
 /** Builds a snapshot from an explicit allow-list of config fields, so secrets (token) can never leak. */
 export function buildSnapshot(s: {
-  league: LeagueView;
+  league: LeagueView | undefined;
+  lastPollOkAt?: number | undefined;
   feed: PlayEntry[];
   takeover: PlayEntry | null;
   status: FeedStatus;
@@ -42,9 +46,8 @@ export function buildSnapshot(s: {
   const theme: Config["theme"] = { colors: { ...cfg.theme.colors }, fontFamily: cfg.theme.fontFamily };
   // The logo is always served via /logo, never as a filesystem path.
   if (cfg.theme.logo) theme.logo = "/logo";
-  return {
+  const msg: Extract<ServerMessage, { type: "snapshot" }> = {
     type: "snapshot",
-    league: s.league,
     feed: s.feed.slice(-FEED_LIMIT),
     takeover: s.takeover,
     status: s.status,
@@ -54,9 +57,13 @@ export function buildSnapshot(s: {
       takeoverSeconds: cfg.takeoverSeconds,
       playlist: [...cfg.playlist],
       playlistSeconds: cfg.playlistSeconds,
+      pollSeconds: cfg.pollSeconds,
     },
     leagueName: s.leagueName,
   };
+  if (s.league) msg.league = s.league;
+  if (s.lastPollOkAt !== undefined) msg.lastPollOkAt = s.lastPollOkAt;
+  return msg;
 }
 
 export class Hub {

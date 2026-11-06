@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig, watchConfig, type Config } from "./config.js";
 import { Hub, FEED_LIMIT, buildSnapshot, createHttpServer } from "./hub.js";
-import { LeagueState, type LeagueView } from "./league.js";
+import { LeagueState } from "./league.js";
 import { PlayPipeline, type PlayEntry } from "./plays.js";
 import { createRest } from "./sleeper/rest.js";
 import { createFeed, type FeedStatus } from "./sleeper/socket.js";
@@ -10,7 +10,6 @@ import type { Matchup, PlayerInfo, ScoringSettings } from "../shared/types.js";
 
 const TICK_MS = 500;
 const TOPIC = "score:nfl";
-const EMPTY_VIEW: LeagueView = { week: 0, standings: [], matchups: [], estimating: false };
 
 /** First line of an error message only; never includes request URLs with secrets (REST has none). */
 const short = (e: unknown) => String((e as Error)?.message ?? e).split("\n")[0];
@@ -49,9 +48,11 @@ function main(): void {
   let takeover: PlayEntry | null = null;
   let takeoverTimer: NodeJS.Timeout | undefined;
   let status: FeedStatus = "paused";
+  let lastPollOkAt: number | undefined; // epoch ms of the last successful REST poll
 
-  const view = () => league?.view() ?? EMPTY_VIEW;
-  const snapshot = () => buildSnapshot({ league: view(), feed, takeover, status, cfg, leagueName });
+  // No league view until the first successful load: clients show "Waiting for league data…".
+  const snapshot = () => buildSnapshot({ league: league?.view(), lastPollOkAt, feed, takeover, status, cfg, leagueName });
+  const broadcastLeague = (l: LeagueState) => hub.broadcast({ type: "league", league: l.view(), lastPollOkAt });
   hub.setSnapshot(snapshot);
 
   let gen = 0; // bumped when the league changes so in-flight polls discard their results
@@ -63,6 +64,7 @@ function main(): void {
     pipeline = undefined;
     lastWeek = undefined;
     lastStarters = "";
+    lastPollOkAt = undefined;
   }
 
   function onFeed(p: PlayEntry): void {
@@ -92,7 +94,7 @@ function main(): void {
         players = m;
         if (league) {
           league.setPlayers(m);
-          hub.broadcast({ type: "league", league: league.view() });
+          broadcastLeague(league);
         }
       })
       .catch((e) => console.warn(`[players] load failed, will retry next poll: ${short(e)}`))
@@ -130,7 +132,8 @@ function main(): void {
       }
       lastWeek = week;
       lastStarters = key;
-      hub.broadcast({ type: "league", league: league.view() });
+      lastPollOkAt = Date.now();
+      broadcastLeague(league);
     } catch (e) {
       console.warn(`[poll] failed, keeping last good state: ${short(e)}`);
     } finally {
@@ -150,7 +153,7 @@ function main(): void {
       if (event === "stat_updated") {
         if (!league || payload?.player_id == null || typeof payload.stats !== "object" || !payload.stats) return;
         const change = league.applyStatUpdate(String(payload.player_id), payload.stats, payload.week);
-        if (change) hub.broadcast({ type: "league", league: league.view() });
+        if (change) broadcastLeague(league);
       } else if (event === "new_play" || event === "updated_play") {
         pipeline?.handle(event, payload);
       }

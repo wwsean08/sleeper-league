@@ -87,6 +87,18 @@ describe('Spotlight', () => {
     render(<Spotlight store={mk([])} now={NOW} />);
     expect(screen.getByText('No matchups right now')).toBeInTheDocument();
   });
+  it('waits without league data', () => {
+    render(<Spotlight store={{ feed: [], takeover: null, status: 'live', everLive: true } as unknown as StoreState} now={NOW} />);
+    expect(screen.getByText('Waiting for league data…')).toBeInTheDocument();
+  });
+  it('shows the estimating badge only when the league is estimating', () => {
+    render(<Spotlight store={mk([m1])} now={NOW} />);
+    expect(screen.queryByText('estimating')).toBeNull();
+    cleanup();
+    const store = mk([m1]);
+    render(<Spotlight store={{ ...store, league: { ...store.league!, estimating: true } }} now={NOW} />);
+    expect(screen.getByText('estimating')).toBeInTheDocument();
+  });
   it('shows BYE for a one-sided matchup', () => {
     render(<Spotlight store={mk([{ matchupId: 9, sides: [side(1, 'Solo', 0)] }])} now={NOW} />);
     expect(screen.getByText('Solo')).toBeInTheDocument();

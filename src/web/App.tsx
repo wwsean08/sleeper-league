@@ -3,13 +3,14 @@ import { applyTheme } from './theme';
 import { hasLiveStarters, useStore } from './store';
 import { Takeover } from './components/Takeover';
 import { Layout } from './components/Layout';
-import { StaleBanner } from './components/StaleBanner';
+import { ScoresAsOf, StaleBanner } from './components/StaleBanner';
 import { Standings } from './pages/Standings';
 import { Schedule } from './pages/Schedule';
 import { Spotlight } from './pages/Spotlight';
 import { Feed } from './pages/Feed';
 
 export type PageId = 'standings' | 'schedule' | 'spotlight' | 'feed';
+const DEFAULT_POLL_SECONDS = 60;
 const PAGES: readonly PageId[] = ['standings', 'schedule', 'spotlight', 'feed'];
 
 export function choosePage(opts: { hash: string; playlist: string[]; playlistSeconds: number; live: boolean; now: number }): PageId {
@@ -51,8 +52,12 @@ export function App() {
   const View = { standings: Standings, schedule: Schedule, spotlight: Spotlight, feed: Feed }[page];
   return (
     <>
-      <StaleBanner status={store.status} connected={store.connected} page={page} />
-      <Layout logo={store.snapshot?.theme.logo} leagueName={store.snapshot?.leagueName}>
+      <StaleBanner status={store.status} connected={store.connected} page={page} everLive={store.everLive} />
+      <Layout
+        logo={store.snapshot?.theme.logo}
+        leagueName={store.snapshot?.leagueName}
+        badge={<ScoresAsOf lastPollOkAt={store.lastPollOkAt} pollSeconds={ui?.pollSeconds ?? DEFAULT_POLL_SECONDS} now={now} />}
+      >
         <View store={store} />
       </Layout>
       {store.takeover && <Takeover play={store.takeover} seconds={ui?.takeoverSeconds ?? 8} league={store.league} />}

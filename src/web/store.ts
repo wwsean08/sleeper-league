@@ -12,26 +12,53 @@ export interface StoreState {
   feed: PlayEntry[];
   takeover: PlayEntry | null;
   status: FeedStatus;
+  /** Epoch ms of the server's last successful REST poll; undefined before the first one. */
+  lastPollOkAt?: number | undefined;
+  /** True once the live feed has reported `live` in this page session (survives reconnects). */
+  everLive: boolean;
 }
 
 export const FEED_MAX = 200;
 export const LIVE_WINDOW_MS = 15 * 60 * 1000;
 
-export const initialState: StoreState = { feed: [], takeover: null, status: 'connecting' };
+export const initialState: StoreState = { feed: [], takeover: null, status: 'connecting', everLive: false };
 
 export function reduce(state: StoreState, msg: ServerMessage): StoreState {
   switch (msg.type) {
     case 'snapshot':
-      return { snapshot: msg, league: msg.league, feed: [...msg.feed].reverse().slice(0, FEED_MAX), takeover: msg.takeover, status: msg.status };
+      return {
+        snapshot: msg,
+        league: msg.league,
+        lastPollOkAt: msg.lastPollOkAt,
+        feed: [...msg.feed].reverse().slice(0, FEED_MAX),
+        takeover: msg.takeover,
+        status: msg.status,
+        everLive: state.everLive || msg.status === 'live',
+      };
     case 'league':
-      return { ...state, league: msg.league };
+      return { ...state, league: msg.league, lastPollOkAt: msg.lastPollOkAt ?? state.lastPollOkAt };
     case 'feed':
       return { ...state, feed: [msg.play, ...state.feed].slice(0, FEED_MAX) };
     case 'takeover':
       return { ...state, takeover: msg.play };
     case 'status':
-      return { ...state, status: msg.status };
+      return { ...state, status: msg.status, everLive: state.everLive || msg.status === 'live' };
   }
+}
+
+/** Scores are stale when the last good REST poll is more than two poll intervals old. */
+export function isStale(lastPollOkAt: number | undefined, pollSeconds: number, now: number): boolean {
+  if (lastPollOkAt === undefined) return false;
+  return now - lastPollOkAt > 2 * pollSeconds * 1000;
+}
+
+/**
+ * Whether the "Live feed paused" banner applies. `connecting` counts as paused only after the feed
+ * has been live once, so a reconnect does not flicker the banner off, but the very first connect
+ * does not show it.
+ */
+export function feedPaused(status: FeedStatus, everLive: boolean): boolean {
+  return status === 'paused' || (status === 'connecting' && everLive);
 }
 
 /** Matchup ids having a starter involved in a play within the live window. */

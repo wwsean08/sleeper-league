@@ -93,6 +93,22 @@ function get(port: number, p: string): Promise<{ status: number; type: string; b
   });
 }
 
+describe("buildSnapshot", () => {
+  it("omits league and lastPollOkAt before the first successful load; sends pollSeconds; no token", () => {
+    const m = buildSnapshot({ league: undefined, feed: [], takeover: null, status: "connecting", cfg, leagueName: "" });
+    expect(m.type).toBe("snapshot");
+    expect("league" in m).toBe(false);
+    expect("lastPollOkAt" in m).toBe(false);
+    expect(m).toMatchObject({ ui: { pollSeconds: 60 } });
+    expect(JSON.stringify(m)).not.toContain(SENTINEL);
+  });
+  it("includes league and lastPollOkAt once loaded", () => {
+    const m = buildSnapshot({ league, lastPollOkAt: 1234, feed: [], takeover: null, status: "live", cfg, leagueName: "L" });
+    expect(m).toMatchObject({ league, lastPollOkAt: 1234 });
+    expect(JSON.stringify(m)).not.toContain(SENTINEL);
+  });
+});
+
 describe("Hub + SSE", () => {
   it("sends the snapshot first with SSE headers", async () => {
     const { port } = await start();

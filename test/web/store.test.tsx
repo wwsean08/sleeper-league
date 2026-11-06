@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasLiveStarters, initialState, reduce } from '../../src/web/store';
+import { feedPaused, hasLiveStarters, initialState, isStale, reduce } from '../../src/web/store';
 import { choosePage } from '../../src/web/App';
 import type { PlayEntry } from '../../src/server/plays';
 import type { LeagueView } from '../../src/server/league';
@@ -22,7 +22,7 @@ const snapshot = (over: Record<string, unknown> = {}): Extract<ServerMessage, { 
   takeover: null,
   status: 'live',
   theme: { colors: { bg: '', surface: '', text: '', accent: '', good: '', alert: '' }, fontFamily: 'x' },
-  ui: { rotationSeconds: 15, takeoverSeconds: 8, playlist: ['standings'], playlistSeconds: 20 },
+  ui: { rotationSeconds: 15, takeoverSeconds: 8, playlist: ['standings'], playlistSeconds: 20, pollSeconds: 60 },
   leagueName: 'L',
   ...over,
 });
@@ -94,5 +94,51 @@ describe('choosePage', () => {
   });
   it('falls back to standings with an empty playlist', () => {
     expect(choosePage({ ...base, playlist: [] })).toBe('standings');
+  });
+});
+
+describe('isStale', () => {
+  const t0 = 1_000_000;
+  it('undefined lastPollOkAt (before the first poll) is never stale', () => {
+    expect(isStale(undefined, 60, t0 + 10 * 60_000)).toBe(false);
+  });
+  it('exactly 2x pollSeconds is not stale; 2x + 1ms is', () => {
+    expect(isStale(t0, 60, t0 + 120_000)).toBe(false);
+    expect(isStale(t0, 60, t0 + 120_001)).toBe(true);
+    expect(isStale(t0, 10, t0 + 20_001)).toBe(true);
+  });
+});
+
+describe('lastPollOkAt and league in the store', () => {
+  it('a snapshot without league keeps league undefined', () => {
+    const s = reduce(initialState, snapshot({ league: undefined }));
+    expect(s.league).toBeUndefined();
+    expect(s.lastPollOkAt).toBeUndefined();
+  });
+  it('snapshot and league messages carry lastPollOkAt', () => {
+    let s = reduce(initialState, snapshot({ lastPollOkAt: 5 }));
+    expect(s.lastPollOkAt).toBe(5);
+    s = reduce(s, { type: 'league', league: league(), lastPollOkAt: 9 });
+    expect(s.lastPollOkAt).toBe(9);
+    s = reduce(s, { type: 'league', league: league() });
+    expect(s.lastPollOkAt).toBe(9);
+  });
+});
+
+describe('feed paused / everLive', () => {
+  it('connecting is paused only after having been live', () => {
+    expect(feedPaused('connecting', false)).toBe(false);
+    expect(feedPaused('connecting', true)).toBe(true);
+    expect(feedPaused('paused', false)).toBe(true);
+    expect(feedPaused('live', true)).toBe(false);
+  });
+  it('everLive latches on the first live status and survives a new snapshot', () => {
+    let s = reduce(initialState, snapshot({ status: 'connecting' }));
+    expect(s.everLive).toBe(false);
+    s = reduce(s, { type: 'status', status: 'live' });
+    expect(s.everLive).toBe(true);
+    s = reduce(s, { type: 'status', status: 'connecting' });
+    s = reduce(s, snapshot({ status: 'connecting' }));
+    expect(s.everLive).toBe(true);
   });
 });
