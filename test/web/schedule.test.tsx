@@ -29,6 +29,9 @@ describe('Schedule', () => {
   it('shows TBD for a one-sided matchup', () => {
     render(<Schedule store={mk([{ matchupId: 1, sides: [side(1, 'Alpha', 0)] }])} />);
     expect(screen.getByText('TBD')).toBeInTheDocument();
+    expect(screen.getByText('BYE')).toBeInTheDocument();
+    expect(screen.queryByText('0.0')).toBeNull();
+    expect(document.body.innerHTML).not.toContain('text-good');
   });
   it('truncates long names with emoji', () => {
     const name = '🏈' + 'x'.repeat(59);
@@ -37,4 +40,21 @@ describe('Schedule', () => {
     expect(el.className).toContain('truncate');
     expect(el.className).toContain('min-w-0');
   });
+  it('shows a message with zero matchups', () => {
+    render(<Schedule store={mk([])} />);
+    expect(screen.getByText('Week 7 Schedule')).toBeInTheDocument();
+    expect(screen.getByText('No matchups this week')).toBeInTheDocument();
+  });
+  it.each([[3, 2, 2, 'text-4xl'], [6, 3, 2, 'text-3xl'], [9, 3, 3, 'text-3xl'], [10, 3, 4, 'text-2xl'], [16, 4, 4, 'text-xl']])(
+    'derives layout for %i matchups',
+    (n, cols, rows, text) => {
+      const ms = Array.from({ length: n }, (_, i) => ({ matchupId: i, sides: [side(i * 2, `A${i}`, 1), side(i * 2 + 1, `B${i}`, 2)] }));
+      render(<Schedule store={mk(ms)} />);
+      const grid = screen.getByTestId('schedule-grid');
+      expect(grid.getAttribute('style')).toContain(`repeat(${cols}, minmax(0, 1fr))`);
+      expect(grid.getAttribute('style')).toContain(`repeat(${rows}, minmax(0, 1fr))`);
+      expect(screen.getByText('A0').className).toContain(text);
+      expect(grid.children).toHaveLength(n);
+    },
+  );
 });

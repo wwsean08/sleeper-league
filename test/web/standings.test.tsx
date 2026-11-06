@@ -35,4 +35,15 @@ describe('Standings', () => {
     expect(container.innerHTML).not.toMatch(/overflow-y-(auto|scroll)|overflow-(auto|scroll)/);
     expect(screen.getByText('Team 1').className).toContain('truncate');
   });
+  it.each([[6, 1, 6, 'text-4xl'], [10, 2, 5, 'text-4xl'], [12, 2, 6, 'text-4xl'], [18, 2, 9, 'text-3xl'], [20, 2, 10, 'text-2xl']])(
+    'derives layout for %i teams',
+    (n, cols, rows, text) => {
+      render(<Standings store={mk(n)} />);
+      const grid = screen.getByTestId('standings-grid');
+      expect(grid.getAttribute('style')).toContain(`repeat(${cols}, minmax(0, 1fr))`);
+      expect(grid.getAttribute('style')).toContain(`repeat(${rows}, minmax(0, 1fr))`);
+      expect(screen.getAllByTestId('standing-row')).toHaveLength(n);
+      expect(screen.getAllByTestId('standing-row')[0]!.className).toContain(text);
+    },
+  );
 });
