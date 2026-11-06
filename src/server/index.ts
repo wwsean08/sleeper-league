@@ -39,7 +39,8 @@ function main(): void {
 
   let leagueName = "";
   let rules: ScoringSettings | undefined;
-  let players: Map<string, PlayerInfo> | undefined;
+  // Empty until /players/nfl loads in the background; LeagueState falls back to ids meanwhile.
+  let players = new Map<string, PlayerInfo>();
   let league: LeagueState | undefined;
   let pipeline: PlayPipeline | undefined;
   let lastWeek: number | undefined;
@@ -79,14 +80,35 @@ function main(): void {
     }, cfg.takeoverSeconds * 1000);
   }
 
+  let playersLoading = false;
+  /** Fire-and-forget; rest.players() is TTL-cached (24h), so calling it every poll refreshes names daily. */
+  function refreshPlayers(): void {
+    if (playersLoading) return;
+    playersLoading = true;
+    rest
+      .players()
+      .then((m) => {
+        if (m === players) return;
+        players = m;
+        if (league) {
+          league.setPlayers(m);
+          hub.broadcast({ type: "league", league: league.view() });
+        }
+      })
+      .catch((e) => console.warn(`[players] load failed, will retry next poll: ${short(e)}`))
+      .finally(() => {
+        playersLoading = false;
+      });
+  }
+
   let polling = false;
   async function poll(): Promise<void> {
     if (polling) return;
     polling = true;
     const leagueId = cfg.leagueId;
     const myGen = gen;
+    refreshPlayers();
     try {
-      players ??= await rest.players();
       const { week } = await rest.nflState();
       if (!rules) {
         const meta = await rest.league(leagueId);
@@ -150,11 +172,16 @@ function main(): void {
       hub.broadcast({ type: "status", status: s });
     },
   });
-  let feedStarted = false;
+  let feedRunning = false;
   function maybeStartFeed(): void {
-    if (feedStarted || !cfg.token) return;
-    feedStarted = true;
+    if (feedRunning || !cfg.token) return;
+    feedRunning = true;
     socket.start();
+  }
+  function stopFeed(): void {
+    if (!feedRunning) return;
+    feedRunning = false;
+    socket.stop(); // reports status "paused"
   }
 
   const tickTimer = setInterval(() => {
@@ -169,18 +196,26 @@ function main(): void {
     configPath,
     (next) => {
       const prev = cfg;
-      cfg = next;
-      console.log("[config] reloaded");
-      if (next.leagueId !== prev.leagueId) {
-        resetLeague();
-        feed = [];
-        takeover = null;
-        void poll();
+      cfg = next; // loadConfig already validated it; from here on the new config is live
+      try {
+        if (next.leagueId !== prev.leagueId) {
+          resetLeague();
+          feed = [];
+          takeover = null;
+          void poll();
+        }
+        if (next.pollSeconds !== prev.pollSeconds) schedulePoll();
+        if (next.port !== prev.port) console.log("[config] port change takes effect after restart");
+        if (next.token !== prev.token) {
+          stopFeed(); // restart with the new token, or stay paused if it was removed
+          console.log("[config] token changed; feed restarting");
+        }
+        maybeStartFeed();
+        hub.broadcast(snapshot());
+        console.log("[config] reloaded");
+      } catch (e) {
+        console.error(`[config] reload applied with errors: ${short(e)}`);
       }
-      if (next.pollSeconds !== prev.pollSeconds) schedulePoll();
-      if (next.port !== prev.port) console.log("[config] port change takes effect after restart");
-      maybeStartFeed();
-      hub.broadcast(snapshot());
     },
     (e) => console.error(`[config] reload failed, keeping previous config: ${short(e)}`),
   );
@@ -214,7 +249,7 @@ function main(): void {
     clearInterval(tickTimer);
     clearTimeout(takeoverTimer);
     stopWatch();
-    socket.stop();
+    stopFeed();
     hub.close();
     server.closeAllConnections();
     server.close(() => process.exit(code));

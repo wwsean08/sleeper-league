@@ -13,11 +13,32 @@ export class SleeperHttpError extends Error {
   }
 }
 
-export function createRest(fetchFn: typeof fetch = fetch, now: () => number = Date.now) {
-  async function get<T>(path: string): Promise<T> {
-    const res = await fetchFn(`${BASE}${path}`);
-    if (!res.ok) throw new SleeperHttpError(res.status, path);
-    return (await res.json()) as T;
+export interface RestTimeouts {
+  /** Per-request timeout for small endpoints (ms). */
+  defaultMs: number;
+  /** Timeout for the large /players/nfl download (ms). */
+  playersMs: number;
+}
+
+const DEFAULT_TIMEOUTS: RestTimeouts = { defaultMs: 15_000, playersMs: 60_000 };
+
+export function createRest(
+  fetchFn: typeof fetch = fetch,
+  now: () => number = Date.now,
+  timeouts: RestTimeouts = DEFAULT_TIMEOUTS,
+) {
+  async function get<T>(path: string, timeoutMs = timeouts.defaultMs): Promise<T> {
+    const signal = AbortSignal.timeout(timeoutMs);
+    try {
+      const res = await fetchFn(`${BASE}${path}`, { signal });
+      if (!res.ok) throw new SleeperHttpError(res.status, path);
+      return (await res.json()) as T;
+    } catch (e) {
+      if (e instanceof SleeperHttpError) throw e;
+      // Plain errors naming only the path; never the full URL or headers.
+      if (signal.aborted) throw new Error(`Sleeper request timed out after ${timeoutMs}ms for ${path}`);
+      throw new Error(`Sleeper request failed for ${path}: ${String((e as Error)?.message ?? e).split("\n")[0]}`);
+    }
   }
 
   let playersCache: { at: number; value: Map<string, PlayerInfo> } | undefined;
@@ -92,7 +113,7 @@ export function createRest(fetchFn: typeof fetch = fetch, now: () => number = Da
     async players(): Promise<Map<string, PlayerInfo>> {
       if (playersCache && now() - playersCache.at < PLAYERS_TTL_MS) return playersCache.value;
       type Raw = { first_name?: string; last_name?: string; position?: string | null; team?: string | null };
-      const raw = await get<Record<string, Raw>>("/players/nfl");
+      const raw = await get<Record<string, Raw>>("/players/nfl", timeouts.playersMs);
       const value = new Map<string, PlayerInfo>();
       for (const [pid, p] of Object.entries(raw)) {
         const info: PlayerInfo = {

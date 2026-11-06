@@ -68,6 +68,13 @@ describe("LeagueState", () => {
     l.reconcile(mk(10, 20));
     expect(l.view().standings[0].wins).toBe(2);
   });
+  it("setPlayers replaces names used by view", () => {
+    const l = new LeagueState(rules, new Map());
+    l.loadWeek(3, rosters, mk(10, 20));
+    expect(l.view().matchups[0].sides[0].starters[0]).toMatchObject({ name: "p1", position: "?" });
+    l.setPlayers(players);
+    expect(l.view().matchups[0].sides[0].starters[0]).toMatchObject({ name: "Alpha", position: "WR" });
+  });
   it("standings sort wins then fpts, stable", () => {
     const l = new LeagueState(rules, players);
     const rs = [roster(1, 1, 100, []), roster(2, 2, 50, []), roster(3, 1, 100, []), roster(4, 1, 130, [])];

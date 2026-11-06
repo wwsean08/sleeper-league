@@ -46,8 +46,13 @@ export class LeagueState {
 
   constructor(
     private readonly rules: ScoringSettings,
-    private readonly players: Map<string, PlayerInfo>,
+    private players: Map<string, PlayerInfo>,
   ) {}
+
+  /** Swap in a (re)loaded player directory; view() uses it for names/positions. */
+  setPlayers(players: Map<string, PlayerInfo>): void {
+    this.players = players;
+  }
 
   loadWeek(week: number, rosters: Roster[], matchups: Matchup[]): void {
     if (week !== this.week) this.lastSeen.clear();

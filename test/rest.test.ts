@@ -85,3 +85,28 @@ describe("rest", () => {
     expect(calls).toHaveLength(2);
   });
 });
+
+describe("rest timeouts", () => {
+  const hanging = (calls: string[] = []) =>
+    ((url: string | URL | Request, init?: RequestInit) => {
+      calls.push(String(url));
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+      });
+    }) as typeof fetch;
+
+  it("rejects a hung small request with a plain Error naming the path", async () => {
+    const rest = createRest(hanging(), Date.now, { defaultMs: 20, playersMs: 1000 });
+    const err = await rest.nflState().then(() => undefined, (e: unknown) => e as Error);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(SleeperHttpError);
+    expect(err!.message).toContain("/state/nfl");
+    expect(err!.message).toMatch(/timed out/i);
+    expect(err!.message).not.toContain("https://");
+  });
+
+  it("uses the longer players timeout", async () => {
+    const rest = createRest(hanging(), Date.now, { defaultMs: 1000, playersMs: 20 });
+    await expect(rest.players()).rejects.toThrow(/\/players\/nfl/);
+  });
+});

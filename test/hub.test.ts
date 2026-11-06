@@ -133,6 +133,21 @@ describe("Hub + SSE", () => {
     c.close();
   });
 
+  it("HEAD /events ends immediately without attaching a client", async () => {
+    const { hub, port } = await start();
+    const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
+      const req = http.request({ host: "127.0.0.1", port, path: "/events", method: "HEAD" }, (r) => {
+        r.resume();
+        r.on("end", () => resolve(r));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toBe("text/event-stream");
+    expect(hub.size).toBe(0);
+  });
+
   it("sends ': ping' comments on the ping interval", async () => {
     const { port } = await start({ pingMs: 20 });
     const c = sse(port);
@@ -171,7 +186,7 @@ describe("static and logo", () => {
   it("refuses path traversal", async () => {
     const { web } = site();
     const { port } = await start({ webRoot: web });
-    for (const p of ["/../package.json", "/%2e%2e/package.json", "/assets/../../package.json", "/%2e%2e%2fpackage.json", "/..%5cpackage.json"]) {
+    for (const p of ["/../package.json", "/%2e%2e/package.json", "/assets/../../package.json", "/%2e%2e%2fpackage.json", "/..%5cpackage.json", "/%00", "/index.html%00.png", "/..%00/package.json"]) {
       const r = await get(port, p);
       expect(r.status, p).toBe(404);
       expect(r.body, p).not.toContain("secret");

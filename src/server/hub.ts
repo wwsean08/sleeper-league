@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { pipeline } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Config } from "./config.js";
 import type { LeagueView } from "./league.js";
@@ -171,7 +172,10 @@ function sendFile(res: ServerResponse, file: string, head: boolean): void {
       if (head) {
         stream.destroy();
         res.end();
-      } else stream.pipe(res);
+      } else {
+        // pipeline destroys the read stream if the client aborts; errors are expected then and ignored.
+        pipeline(stream, res, () => {});
+      }
     });
   });
 }
@@ -223,7 +227,13 @@ export function createHttpServer(opts: {
       const rawUrl = req.url ?? "/";
       const q = rawUrl.indexOf("?");
       const rawPath = q < 0 ? rawUrl : rawUrl.slice(0, q);
-      if (rawPath === "/events") return opts.hub.attach(res);
+      if (rawPath === "/events") {
+        if (head) {
+          res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+          return void res.end();
+        }
+        return opts.hub.attach(res);
+      }
       if (rawPath === "/logo") {
         const logo = opts.logoPath();
         if (!logo) return notFound(res);
