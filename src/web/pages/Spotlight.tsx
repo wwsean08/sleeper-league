@@ -29,9 +29,18 @@ function TeamColumn({ side, lead, bye }: { side: Side; lead: boolean; bye: boole
       )}
       <ul className="flex flex-col gap-1">
         {side.starters.map((st) => (
-          <li key={st.playerId} className="flex items-baseline gap-3 text-2xl">
+          // A starter whose NFL game is in progress gets a faint accent tint and a small dot. Every row keeps
+          // the same padding and dot slot so rows do not shift when a game starts or ends.
+          <li
+            key={st.playerId}
+            data-live={st.live ? 'true' : 'false'}
+            className={`-mx-3 flex items-center gap-3 rounded-lg px-3 py-0.5 text-2xl ${st.live ? 'bg-accent/10' : ''}`}
+          >
             <span className="w-14 text-text/60">{st.position}</span>
             <span className="min-w-0 flex-1 truncate">{st.name}</span>
+            <span className="flex w-3 justify-center">
+              {st.live && <span aria-label="game in progress" className="size-2.5 rounded-full bg-accent" />}
+            </span>
             <span className="font-semibold tabular-nums">{st.points.toFixed(1)}</span>
           </li>
         ))}

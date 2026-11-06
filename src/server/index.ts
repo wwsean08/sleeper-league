@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { loadConfig, watchConfig, type Config } from "./config.js";
 import { Hub, FEED_LIMIT, buildSnapshot, createHttpServer } from "./hub.js";
 import { LeagueState } from "./league.js";
+import { LiveGames } from "./liveGames.js";
 import { PlayPipeline, type PlayEntry } from "./plays.js";
 import { createRest } from "./sleeper/rest.js";
 import { createFeed, type FeedStatus } from "./sleeper/socket.js";
@@ -48,6 +49,7 @@ function main(): void {
   let takeover: PlayEntry | null = null;
   let takeoverTimer: NodeJS.Timeout | undefined;
   let status: FeedStatus = "paused";
+  const liveGames = new LiveGames();
   let lastPollOkAt: number | undefined; // epoch ms of the last successful REST poll
 
   // No league view until the first successful load: clients show "Waiting for league data…".
@@ -122,6 +124,7 @@ function main(): void {
       if (myGen !== gen || !rules) return; // league changed mid-poll; results are stale
       if (!league) {
         league = new LeagueState(rules, players);
+        league.setLiveTeams(liveGames.teams());
         pipeline = new PlayPipeline({ league, rules, cfg: () => cfg, onFeed, onTakeover });
       }
       const key = startersKey(matchups);
@@ -148,6 +151,11 @@ function main(): void {
     pollTimer = setInterval(() => void poll(), cfg.pollSeconds * 1000);
   }
 
+  // Push the current live-game teams into the league view and tell the browsers if anything changed.
+  function syncLiveTeams(): void {
+    if (league?.setLiveTeams(liveGames.teams())) broadcastLeague(league);
+  }
+
   function onEvent(event: string, payload: any): void {
     try {
       if (event === "stat_updated") {
@@ -156,6 +164,8 @@ function main(): void {
         if (change) broadcastLeague(league);
       } else if (event === "new_play" || event === "updated_play") {
         pipeline?.handle(event, payload);
+      } else if (event === "score_updated") {
+        if (liveGames.update(payload)) syncLiveTeams();
       }
     } catch (e) {
       console.warn(`[feed] ${event} handling failed: ${short(e)}`);
@@ -172,6 +182,8 @@ function main(): void {
     onEvent,
     onStatus: (s) => {
       status = s;
+      // Without the feed we cannot vouch that any game is still live, so drop the highlight.
+      if (s !== "live" && liveGames.clear()) syncLiveTeams();
       hub.broadcast({ type: "status", status: s });
     },
   });

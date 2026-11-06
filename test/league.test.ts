@@ -98,7 +98,7 @@ describe("LeagueState", () => {
     const s = l.view().matchups[0].sides;
     expect(s.map((x) => x.score)).toEqual([50, 50]);
     expect(s[0].teamName).toBe("Team1");
-    expect(s[0].starters).toEqual([{ playerId: "p1", name: "Alpha", position: "WR", points: 0 }]);
+    expect(s[0].starters).toEqual([{ playerId: "p1", name: "Alpha", position: "WR", points: 0, live: false }]);
   });
 
   it("clears live totals on week rollover", () => {

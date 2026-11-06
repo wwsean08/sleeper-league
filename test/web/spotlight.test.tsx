@@ -4,7 +4,7 @@ import { Spotlight } from '../../src/web/pages/Spotlight';
 import { liveMatchupIds, type StoreState } from '../../src/web/store';
 
 const NOW = 10_000_000;
-const st = (id: string, name: string, points: number) => ({ playerId: id, name, position: 'RB', points });
+const st = (id: string, name: string, points: number, live = false) => ({ playerId: id, name, position: 'RB', points, live });
 const side = (rosterId: number, teamName: string, score: number, starters: ReturnType<typeof st>[] = []) => ({ rosterId, teamName, score, starters });
 const play = (id: string, pid: string, over: Record<string, unknown> = {}) => ({
   playId: id, gameId: 'g', description: `desc-${id}`, quarter: '2', clock: '5:00', yards: 5,
@@ -42,6 +42,18 @@ describe('Spotlight', () => {
     for (const i of [1, 2, 3, 4, 5]) expect(screen.getByText(`desc-p${i}`)).toBeInTheDocument();
     expect(screen.queryByText('desc-p6')).toBeNull();
     expect(screen.getByText('1 of 1')).toBeInTheDocument();
+  });
+  it('subtly highlights starters whose game is live and leaves the rest plain', () => {
+    const liveSide = side(1, 'Alpha', 10, [st('a1', 'Ann Ace', 5, true), st('a2', 'Al Idle', 5, false)]);
+    render(<Spotlight store={mk([{ matchupId: 1, sides: [liveSide, side(2, 'Beta', 9)] }])} now={NOW} />);
+    const live = screen.getByText('Ann Ace').closest('li')!;
+    const idle = screen.getByText('Al Idle').closest('li')!;
+    expect(live.getAttribute('data-live')).toBe('true');
+    expect(live.className).toContain('bg-accent/10');
+    expect(live.querySelector('[aria-label="game in progress"]')).not.toBeNull();
+    expect(idle.getAttribute('data-live')).toBe('false');
+    expect(idle.className).not.toContain('bg-accent/10');
+    expect(idle.querySelector('[aria-label="game in progress"]')).toBeNull();
   });
   it('ties are neutral', () => {
     render(<Spotlight store={mk([m2])} now={NOW} />);

@@ -11,7 +11,7 @@ const play = (id: string, over: Partial<PlayEntry> = {}): PlayEntry => ({
 const league = (over: Partial<LeagueView> = {}): LeagueView => ({
   week: 1,
   standings: [],
-  matchups: [{ matchupId: 1, sides: [{ rosterId: 1, teamName: 'A', score: 0, starters: [{ playerId: 'p1', name: 'P', position: 'QB', points: 0 }] }] }],
+  matchups: [{ matchupId: 1, sides: [{ rosterId: 1, teamName: 'A', score: 0, starters: [{ playerId: 'p1', name: 'P', position: 'QB', points: 0, live: false }] }] }],
   estimating: false,
   ...over,
 });

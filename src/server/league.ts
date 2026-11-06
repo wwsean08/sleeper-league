@@ -18,7 +18,7 @@ export interface LeagueView {
       rosterId: number;
       teamName: string;
       score: number;
-      starters: Array<{ playerId: string; name: string; position: string; points: number }>;
+      starters: Array<{ playerId: string; name: string; position: string; points: number; live: boolean }>;
     }>;
   }>;
   estimating: boolean;
@@ -39,6 +39,7 @@ export class LeagueState {
   // Totals survive loadWeek so a re-promoted starter stays consistent.
   private lastSeen = new Map<string, number>();
   private estimating = false;
+  private liveTeams: ReadonlySet<string> = new Set();
   // One stable callback so scoreStats reports each unknown key once per instance.
   private readonly onUnknown = (key: string): void => {
     console.warn(`unknown scoring stat key: ${key}`);
@@ -48,6 +49,20 @@ export class LeagueState {
     private readonly rules: ScoringSettings,
     private players: Map<string, PlayerInfo>,
   ) {}
+
+  /** NFL team abbreviations with a game in progress. Returns true when the set changed. */
+  setLiveTeams(teams: ReadonlySet<string>): boolean {
+    const same = teams.size === this.liveTeams.size && [...teams].every((t) => this.liveTeams.has(t));
+    if (same) return false;
+    this.liveTeams = new Set(teams);
+    return true;
+  }
+
+  // A DEF starter's id is the team abbreviation itself, so it counts even if the directory lacks a team field.
+  private isLive(id: string): boolean {
+    const team = this.players.get(id)?.team;
+    return (team !== undefined && this.liveTeams.has(team)) || this.liveTeams.has(id);
+  }
 
   /** Swap in a (re)loaded player directory; view() uses it for names/positions. */
   setPlayers(players: Map<string, PlayerInfo>): void {
@@ -152,6 +167,7 @@ export class LeagueState {
                 name: this.players.get(id)?.name ?? id,
                 position: this.players.get(id)?.position ?? "?",
                 points: this.lastSeen.get(id) ?? 0,
+                live: this.isLive(id),
               })),
           })),
       })),
