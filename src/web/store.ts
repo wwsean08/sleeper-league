@@ -22,7 +22,7 @@ export const initialState: StoreState = { feed: [], takeover: null, status: 'con
 export function reduce(state: StoreState, msg: ServerMessage): StoreState {
   switch (msg.type) {
     case 'snapshot':
-      return { snapshot: msg, league: msg.league, feed: msg.feed.slice(-FEED_MAX), takeover: msg.takeover, status: msg.status };
+      return { snapshot: msg, league: msg.league, feed: [...msg.feed].reverse().slice(0, FEED_MAX), takeover: msg.takeover, status: msg.status };
     case 'league':
       return { ...state, league: msg.league };
     case 'feed':
@@ -43,21 +43,42 @@ export function hasLiveStarters(league: LeagueView | undefined, feed: PlayEntry[
   return feed.some((p) => p.at >= since && p.involved.some((i) => starters.has(i.playerId)));
 }
 
+export const RETRY_MS = 5000;
+
 export function useStore(): StoreState & { connected: boolean } {
   const [state, dispatch] = useReducer(reduce, initialState);
   const [connected, setConnected] = useState(false);
   useEffect(() => {
-    const es = new EventSource('/events');
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (e: MessageEvent<string>) => {
-      try {
-        dispatch(JSON.parse(e.data) as ServerMessage);
-      } catch {
-        /* ignore malformed frame */
-      }
+    let es: EventSource | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const open = () => {
+      timer = undefined;
+      const cur = new EventSource('/events');
+      es = cur;
+      cur.onopen = () => setConnected(true);
+      cur.onerror = () => {
+        setConnected(false);
+        // CLOSED means the browser gave up (e.g. HTTP error); recreate it ourselves.
+        if (cur.readyState === 2 && !stopped && !timer) {
+          cur.close();
+          timer = setTimeout(open, RETRY_MS);
+        }
+      };
+      cur.onmessage = (e: MessageEvent<string>) => {
+        try {
+          dispatch(JSON.parse(e.data) as ServerMessage);
+        } catch {
+          /* ignore malformed frame */
+        }
+      };
     };
-    return () => es.close();
+    open();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      es?.close();
+    };
   }, []);
   return { ...state, connected };
 }

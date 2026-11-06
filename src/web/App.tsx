@@ -49,7 +49,7 @@ export function App() {
   const View = { standings: Standings, schedule: Schedule, spotlight: Spotlight, feed: Feed }[page];
   return (
     <>
-      <StaleBanner status={store.status} connected={store.connected} />
+      <StaleBanner status={store.status} connected={store.connected} page={page} />
       <View store={store} />
     </>
   );

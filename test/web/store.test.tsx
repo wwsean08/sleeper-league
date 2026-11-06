@@ -54,11 +54,23 @@ describe('reduce', () => {
   });
 });
 
+describe('snapshot ordering', () => {
+  it('normalizes the oldest-first server feed to newest-first', () => {
+    let s = reduce(initialState, snapshot({ feed: [play('oldest'), play('middle'), play('newest')] }));
+    s = reduce(s, { type: 'feed', play: play('live') });
+    expect(s.feed.map((p) => p.playId)).toEqual(['live', 'newest', 'middle', 'oldest']);
+  });
+});
+
 describe('hasLiveStarters', () => {
   const now = 10_000_000;
   const inv = [{ playerId: 'p1', name: 'P', rosterId: 1, points: 1 }];
   it('true for a recent play by a starter', () => {
     expect(hasLiveStarters(league(), [play('a', { at: now - 60_000, involved: inv })], now)).toBe(true);
+  });
+  it('15 minutes exactly is live, 15:00.001 is not', () => {
+    expect(hasLiveStarters(league(), [play('a', { at: now - 15 * 60_000, involved: inv })], now)).toBe(true);
+    expect(hasLiveStarters(league(), [play('a', { at: now - 15 * 60_000 - 1, involved: inv })], now)).toBe(false);
   });
   it('false when stale, non-starter, or no league', () => {
     expect(hasLiveStarters(league(), [play('a', { at: now - 16 * 60_000, involved: inv })], now)).toBe(false);

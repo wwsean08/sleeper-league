@@ -12,4 +12,14 @@ describe('applyTheme', () => {
     expect(s.getPropertyValue('--color-bg')).toBe('#000');
     expect(s.getPropertyValue('--font-main')).toBe('Comic Sans MS');
   });
+
+  it('removes the override when a value is blank', () => {
+    const colors = { bg: '#000', surface: '#111', text: '#fff', accent: '#f0f', good: '#0f0', alert: '#f00' };
+    applyTheme({ colors, fontFamily: 'X' });
+    applyTheme({ colors: { ...colors, accent: '' }, fontFamily: '' });
+    const s = document.documentElement.style;
+    expect(s.getPropertyValue('--color-accent')).toBe('');
+    expect(s.getPropertyValue('--font-main')).toBe('');
+    expect(s.getPropertyValue('--color-bg')).toBe('#000');
+  });
 });
