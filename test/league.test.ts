@@ -60,6 +60,14 @@ describe("LeagueState", () => {
     l.reconcile(mk(14, 20));
     expect(l.view().estimating).toBe(false);
   });
+  it("reconcile with rosters refreshes standings", () => {
+    const l = fresh();
+    l.reconcile(mk(10, 20), [roster(1, 2, 150, ["p1", "0"]), roster(2, 1, 120, ["p3"])]);
+    const v = l.view();
+    expect(v.standings.map((r) => [r.rosterId, r.wins, r.fpts])).toEqual([[1, 2, 150], [2, 1, 120]]);
+    l.reconcile(mk(10, 20));
+    expect(l.view().standings[0].wins).toBe(2);
+  });
   it("standings sort wins then fpts, stable", () => {
     const l = new LeagueState(rules, players);
     const rs = [roster(1, 1, 100, []), roster(2, 2, 50, []), roster(3, 1, 100, []), roster(4, 1, 130, [])];

@@ -103,7 +103,9 @@ export class LeagueState {
     };
   }
 
-  reconcile(matchups: Matchup[]): void {
+  /** Snap scores to REST; when rosters are given, also refresh standings (wins/losses/points-for). */
+  reconcile(matchups: Matchup[], rosters?: Roster[]): void {
+    if (rosters) this.rosters = rosters;
     let gap = false;
     for (const m of matchups) {
       for (const side of m.sides) {
