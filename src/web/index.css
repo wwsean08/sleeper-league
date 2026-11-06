@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/* Runtime values come from applyTheme() (src/web/theme.ts); these are fallbacks until the snapshot arrives. */
+:root {
+  --color-bg: #0b1020;
+  --color-surface: #161d33;
+  --color-text: #f4f6ff;
+  --color-accent: #ffb703;
+  --color-good: #2ecc71;
+  --color-alert: #ff4d4d;
+  --font-main: system-ui, sans-serif;
+}
+
+/* "inline" makes utilities reference var(--color-*) directly instead of a build-time copy. */
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-text: var(--color-text);
+  --color-accent: var(--color-accent);
+  --color-good: var(--color-good);
+  --color-alert: var(--color-alert);
+  --font-main: var(--font-main);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  cursor: none;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-main);
+}
