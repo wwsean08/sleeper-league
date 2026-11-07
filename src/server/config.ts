@@ -18,6 +18,7 @@ export interface Config {
     colors: Record<'bg' | 'surface' | 'text' | 'accent' | 'good' | 'alert', string>;
     fontFamily: string;
   };
+  showLeagueName: boolean;
   rotationSeconds: number;
   takeoverSeconds: number;
   takeoverQueueLimit: number;
@@ -53,6 +54,7 @@ const schema = z.object({
       fontFamily: z.string().default('system-ui, sans-serif'),
     })
     .prefault({}),
+  showLeagueName: z.boolean().default(true),
   rotationSeconds: z.number().positive().default(15),
   takeoverSeconds: z.number().positive().default(8),
   takeoverQueueLimit: z.number().int().positive().default(3),

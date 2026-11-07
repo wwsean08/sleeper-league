@@ -28,6 +28,7 @@ cp config.example.yaml config.local.yaml
 - `leagueId`: the number in your league URL on sleeper.com (`https://sleeper.com/leagues/<leagueId>/...`).
 - `theme.logo`: a path or an `http(s)` URL. A relative path resolves against the directory containing the config file, so put `logo.png` next to `config.local.yaml` and set `logo: ./logo.png`.
 - `theme.colors` (`bg`, `surface`, `text`, `accent`, `good`, `alert`) and `theme.fontFamily`.
+- `showLeagueName`: show the league name in the header (default `true`; set `false` to show only the logo). Applies live on config reload.
 - `rotationSeconds`: seconds per matchup in the spotlight rotation.
 - `takeoverSeconds`, `takeoverQueueLimit`, `longGainYards`: how long a big-play takeover shows, how many may queue, and the yardage that counts as a long gain (default 40).
 - `pollSeconds`: REST poll interval.

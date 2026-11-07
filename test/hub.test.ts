@@ -16,6 +16,7 @@ const cfg: Config = {
     colors: { bg: "#000", surface: "#111", text: "#fff", accent: "#f00", good: "#0f0", alert: "#f00" },
     fontFamily: "system-ui",
   },
+  showLeagueName: true,
   rotationSeconds: 15,
   takeoverSeconds: 8,
   takeoverQueueLimit: 3,
@@ -170,6 +171,16 @@ describe("Hub + SSE", () => {
     const c = sse(port);
     await until(() => c.raw().includes(": ping\n\n"));
     c.close();
+  });
+});
+
+describe("showLeagueName", () => {
+  it("blanks leagueName in the snapshot when disabled", () => {
+    const base = { league: undefined, feed: [], takeover: null, status: "live" as const, leagueName: "My League" };
+    const on = buildSnapshot({ ...base, cfg });
+    const off = buildSnapshot({ ...base, cfg: { ...cfg, showLeagueName: false } });
+    expect((on as { leagueName: string }).leagueName).toBe("My League");
+    expect((off as { leagueName: string }).leagueName).toBe("");
   });
 });
 

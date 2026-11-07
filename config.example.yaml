@@ -23,6 +23,7 @@ theme:
   fontFamily: "system-ui, sans-serif"
 
 # Seconds each matchup is shown during rotation.
+showLeagueName: true     # show the league name in the header (false = logo only)
 rotationSeconds: 15
 # Seconds a big-play takeover stays on screen.
 takeoverSeconds: 8

@@ -60,7 +60,7 @@ export function buildSnapshot(s: {
       pollSeconds: cfg.pollSeconds,
       spotlightMinPlayPoints: cfg.spotlightMinPlayPoints,
     },
-    leagueName: s.leagueName,
+    leagueName: cfg.showLeagueName ? s.leagueName : "",
   };
   if (s.league) msg.league = s.league;
   if (s.lastPollOkAt !== undefined) msg.lastPollOkAt = s.lastPollOkAt;
