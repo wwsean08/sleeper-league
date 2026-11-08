@@ -146,6 +146,10 @@ export class LeagueState {
     this.snap(matchups);
   }
 
+  isEstimating(): boolean {
+    return this.estimating;
+  }
+
   view(): LeagueView {
     const byId = new Map(this.rosters.map((r) => [r.rosterId, r]));
     const standings = [...this.rosters].sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);

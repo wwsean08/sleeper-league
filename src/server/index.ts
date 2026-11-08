@@ -13,6 +13,7 @@ import type { Matchup, PlayerInfo, ScoringSettings } from "../shared/types.js";
 const TICK_MS = 500;
 const TOPIC = "score:nfl";
 const SCORES_POLL_MS = 30_000;
+const ESTIMATING_POLL_MS = 10_000; // re-check REST this often while scores are flagged "estimating"
 
 /** First line of an error message only; never includes request URLs with secrets (REST has none). */
 const short = (e: unknown) => String((e as Error)?.message ?? e).split("\n")[0];
@@ -144,6 +145,7 @@ function main(): void {
     } finally {
       polling = false;
       if (myGen !== gen) void poll(); // re-poll promptly for the new league
+      else scheduleEstimatingRecheck();
     }
   }
 
@@ -167,6 +169,16 @@ function main(): void {
     } finally {
       scoresPolling = false;
     }
+  }
+
+  // While the league is flagged "estimating", poll faster than pollSeconds so the badge clears soon after REST catches up.
+  let recheckTimer: NodeJS.Timeout | undefined;
+  function scheduleEstimatingRecheck(): void {
+    if (recheckTimer || !league?.isEstimating()) return;
+    recheckTimer = setTimeout(() => {
+      recheckTimer = undefined;
+      void poll();
+    }, Math.min(ESTIMATING_POLL_MS, cfg.pollSeconds * 1000));
   }
 
   let pollTimer: NodeJS.Timeout | undefined;
@@ -291,6 +303,7 @@ function main(): void {
     stopping = true;
     console.log("[server] shutting down");
     clearInterval(pollTimer);
+    clearTimeout(recheckTimer);
     clearInterval(tickTimer);
     clearInterval(scoresTimer);
     clearTimeout(takeoverTimer);
